@@ -1,0 +1,33 @@
+Message template:
+{
+    Op: INTEGER,
+    Data: {
+
+    }
+}
+
+
+WEBSOCKET SERVER OP CODES:
+
+1000 - WS heartbeat
+
+...
+
+2001 - 
+
+
+WEBSCOKET CLIENT OP CODES:
+
+1000 - WS heartbeat
+
+...
+
+2001
+
+WEBSOCKET ERROR OP CODES: (No fatal error code, connection just closes)
+
+3000 - Unresponsive error
+
+3001 - Auth error | TBD
+
+
