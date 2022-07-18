@@ -4,13 +4,19 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 )
 
 const (
-	port = 8001
+	PORT = 8001
+
+	HEARTBEAT_INTERVAL       = 30 * time.Second
+	HEARTBEAT_CLIENT_TIMEOUT = 10 * time.Second
+	DEFUALT_CLIENT_TIMEOUT   = 5 * time.Second
+	SDP_OFFER_CLIENT_TIMEOUT = 15 * time.Second
 )
 
 var logger *log.Logger
@@ -33,6 +39,6 @@ func main() {
 
 	app.Use("/connect", InitializeSocket, websocket.New(WebsocketServer))
 
-	log.Fatal(app.Listen(strconv.Itoa(port)))
+	log.Fatal(app.Listen(strconv.Itoa(PORT)))
 
 }

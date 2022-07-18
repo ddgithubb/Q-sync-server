@@ -1,6 +1,7 @@
 Message template:
 {
-    Op: INTEGER,
+    Op: int,
+    Key?: string
     Data: {
 
     }
@@ -13,8 +14,39 @@ WEBSOCKET SERVER OP CODES:
 
 ...
 
-2001 - 
+2000 - Send SDP
+    data: {
+        NodeID: string
+        SDP: string
+    }
 
+2001 - Answer SDP
+    data: {
+        NodeID: string
+        SDP: string
+    }
+
+2002 - New node position
+    data: {
+        NodeID string
+        Path: []int
+        PartnerInt: int
+        CenterCluster: bool
+        ParentClusterNodeIDs: [3][3]string
+        ChildClusterPartnerNodeIDs: [2]string
+        Updates: map[string]bool
+    }
+
+2003 - Verify connected
+    data: {
+        NodeID: string
+    }
+
+2004 - Update node position
+    data: {
+        Position: int
+        NodeID: string
+    }
 
 WEBSCOKET CLIENT OP CODES:
 
@@ -22,11 +54,33 @@ WEBSCOKET CLIENT OP CODES:
 
 ...
 
-2001
+2000 - Send SDP
+    data: {
+        NodeID: string
+        SDP: string
+    }
 
-WEBSOCKET ERROR OP CODES: (No fatal error code, connection just closes)
+2001 - Answer SDP
+    data: {
+        NodeID: string
+        SDP: string
+    }
 
-3000 - Unresponsive error
+2002 - New node position status
+    data: {
+        NodeID: string
+        Status: int
+    }
+
+2003 - Reply node status
+    data: {
+        NodeID: string
+        Status: int
+    }
+
+WEBSOCKET ERROR OP CODES:
+
+3000 - Non compliant error (timeouts)
 
 3001 - Auth error | TBD
 

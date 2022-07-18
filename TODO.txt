@@ -1,0 +1,2 @@
+- Finish websocket ACK logic
+- Add node report

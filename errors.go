@@ -23,6 +23,9 @@ var errorCodesDescription = map[int]string{
 	40005: "Websocket write error",
 	40006: "Error marshalling to JSON",
 	40007: "Error unmarshalling JSON",
+	40008: "Websocket set read deadline error",
+	40009: "Websocket unexpected binary message",
+	40010: "Unrecognzied Op code",
 }
 
 func handleUpgradeError(c *fiber.Ctx, code int, errorInfo ...string) error {
@@ -34,6 +37,6 @@ func handleUpgradeError(c *fiber.Ctx, code int, errorInfo ...string) error {
 	})
 }
 
-func handleWebsocketError(c *websocket.Conn, code int, errorInfo ...string) {
-	logger.Println("IP:", c.RemoteAddr().String(), "| Code:", code, "| Error info:", errorInfo)
+func handleWebsocketError(ws *websocket.Conn, code int, errorInfo ...string) {
+	logger.Println("IP:", ws.RemoteAddr().String(), "| Code:", code, "| Error info:", errorInfo)
 }

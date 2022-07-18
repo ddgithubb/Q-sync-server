@@ -1,19 +1,54 @@
 package main
 
+const (
+	NOT_ACTIVE_STATUS = 0
+	ACTIVE_STATUS     = 1
+
+	DISCONNECT_NODE = 0
+	CONNECT_NODE    = 1
+	NO_CHANGE_NODE  = 2
+)
+
+type AckPendingInfo struct {
+	responses  int
+	responseOp int
+	nodeID     string
+}
+
 type WSMessage struct {
 	Op   int
+	Key  string
 	Data interface{}
 }
 
-func constructWSMessage(op int, data interface{}) WSMessage {
+func constructWSMessage(op int, data interface{}, key string) WSMessage {
 	return WSMessage{
 		Op:   op,
+		Key:  key,
 		Data: data,
 	}
 }
 
-//////////////////////////////////////// WEBSCOKET SERVER OP DATA ////////////////////////////////////////
+type SendSDPData struct {
+	NodeID string
+	SDP    string
+}
 
-//////////////////////////////////////// WEBSCOKET CLIENT OP DATA ////////////////////////////////////////
+type NewNodePositionData struct {
+	NodeID                     string
+	Path                       []int
+	PartnerInt                 int
+	CenterCluster              bool
+	ParentClusterNodeIDs       [3][3]string
+	ChildClusterPartnerNodeIDs [2]string
+	Updates                    map[string]int
+}
 
-//////////////////////////////////////// WEBSCOKET ERROR OP DATA ////////////////////////////////////////
+type VerifyNodeConnectedData struct {
+	NodeID string
+}
+
+type NodeStatusData struct {
+	NodeID string
+	Status int
+}
