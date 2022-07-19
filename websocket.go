@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	clustertree "sync-server/cluster-tree"
@@ -15,6 +16,12 @@ func safelyCloseWS(ws *websocket.Conn) {
 	if ws != nil && ws.Conn != nil {
 		ws.Close()
 	}
+}
+
+func clientNotCompliant(ws *websocket.Conn) error {
+	writeMessage(ws, 3000, nil)
+	safelyCloseWS(ws)
+	return errors.New("Client not compliant")
 }
 
 func writeWSMessage(ws *websocket.Conn, msg WSMessage) error {
@@ -38,12 +45,12 @@ func writeWSMessage(ws *websocket.Conn, msg WSMessage) error {
 	return nil
 }
 
-func writeMessageNoKey(ws *websocket.Conn, op int, data interface{}) error {
-	return writeWSMessage(ws, constructWSMessage(op, data, ""))
+func writeMessage(ws *websocket.Conn, op int, data interface{}) error {
+	return writeWSMessage(ws, constructWSMessage(op, data, "", ""))
 }
 
-func writeMessageWithKey(ws *websocket.Conn, op int, data interface{}, key string) error {
-	return writeWSMessage(ws, constructWSMessage(op, data, key))
+func writeMessageWithTarget(ws *websocket.Conn, op int, data interface{}, key string, targetNodeID string) error {
+	return writeWSMessage(ws, constructWSMessage(op, data, key, targetNodeID))
 }
 
 func WebsocketServer(ws *websocket.Conn) {
@@ -69,6 +76,10 @@ func WebsocketServer(ws *websocket.Conn) {
 		mt  int
 		b   []byte
 		err error
+
+		op      int
+		validOp bool
+		data    interface{}
 	)
 	for {
 
@@ -87,11 +98,46 @@ func WebsocketServer(ws *websocket.Conn) {
 
 		fmt.Println("RECV WS:", string(b))
 
-		switch jsoniter.Get(b, "Op").ToInt() {
+		validOp = true
+		data = nil
+		op = jsoniter.Get(b, "Op").ToInt()
+
+		switch op {
 		case 1000:
-			writeMessageNoKey(ws, 1000, nil)
+			writeMessage(ws, 1000, nil)
+		case 2000:
+		case 2001:
+			d := new(NodeStatusData)
+			jsoniter.Get(b, "Data").ToVal(d)
+			data = *d
+		case 2002:
+		case 2003:
+			d := new(SendSDPData)
+			jsoniter.Get(b, "Data").ToVal(d)
+			data = *d
+		case 2004:
+			d := new(SendSDPData)
+			jsoniter.Get(b, "Data").ToVal(d)
+			data = *d
+		case 2005:
+			d := new(NodeStatusData)
+			jsoniter.Get(b, "Data").ToVal(d)
+			data = *d
 		default:
+			validOp = false
 			handleWebsocketError(ws, 40010, strconv.Itoa(jsoniter.Get(b, "Op").ToInt()))
+		}
+
+		if validOp {
+			if op >= 2000 && op < 3000 {
+				node.NodeChan <- clustertree.ChanMessage{
+					Op:           op,
+					Action:       clustertree.CLIENT_ACTION,
+					Key:          jsoniter.Get(b, "Key").ToString(),
+					TargetNodeID: jsoniter.Get(b, "TargetNodeID").ToString(),
+					Data:         data,
+				}
+			}
 		}
 	}
 }
@@ -110,28 +156,24 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		ackPending map[string]*AckPendingInfo = make(map[string]*AckPendingInfo) // keys are Keys, value are how many acks accepted
 	)
 
-	sendOp := func(op int, data interface{}, responseOp int, timeout time.Duration, expectedResponses int) {
-		if expectedResponses > 0 {
-			key := strconv.FormatInt(time.Now().UnixMilli(), 10)
-			ackPending[key] = &AckPendingInfo{
-				responses:  expectedResponses,
-				responseOp: responseOp,
-			}
-			writeErr = writeMessageWithKey(ws, op, data, key)
-			if writeErr != nil {
-				return
-			}
-			go func() {
-				time.Sleep(timeout)
-				nodeChan <- clustertree.ChanMessage{
-					Op:     op,
-					Key:    key,
-					Action: clustertree.TIMEOUT_ACTION,
-				}
-			}()
-		} else {
-			writeErr = writeMessageNoKey(ws, op, data)
+	sendOp := func(op int, data interface{}, responseOp int, targetNodeID string, timeout time.Duration) {
+		key := strconv.FormatInt(time.Now().UnixMilli(), 10)
+		ackPending[key] = &AckPendingInfo{
+			ResponseOp:   responseOp,
+			TargetNodeID: targetNodeID,
 		}
+		writeErr = writeMessageWithTarget(ws, op, data, key, targetNodeID)
+		if writeErr != nil {
+			return
+		}
+		go func() {
+			time.Sleep(timeout)
+			nodeChan <- clustertree.ChanMessage{
+				Op:     op,
+				Key:    key,
+				Action: clustertree.TIMEOUT_ACTION,
+			}
+		}()
 	}
 
 	for {
@@ -146,111 +188,143 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 
 		if chanMessage.Action == clustertree.TIMEOUT_ACTION {
-			if ackPending[chanMessage.Key].responses != 0 {
-				writeErr = writeMessageNoKey(ws, 3000, nil)
-				safelyCloseWS(ws)
-			} else {
-				delete(ackPending, chanMessage.Key)
+			if _, ok := ackPending[chanMessage.Key]; ok {
+				writeErr = clientNotCompliant(ws)
 			}
 			continue
 		} else if chanMessage.Action == clustertree.CLIENT_ACTION {
 			if chanMessage.Key != "" {
 				ackPendingInfo := ackPending[chanMessage.Key]
-				if ackPendingInfo != nil && ackPendingInfo.responseOp == chanMessage.Op {
-					ackPendingInfo.responseOp--
+				if ackPendingInfo != nil && ackPendingInfo.ResponseOp == chanMessage.Op && ackPendingInfo.TargetNodeID == chanMessage.TargetNodeID {
+					delete(ackPending, chanMessage.Key)
+				} else {
+					continue
 				}
 			}
 		}
 
 		switch chanMessage.Op {
 		case 2000:
-			sdpData := chanMessage.Data.(SendSDPData)
-			if nodesStatus[sdpData.NodeID] == ACTIVE_STATUS {
-				if chanMessage.Action == clustertree.CLIENT_ACTION {
-					targetNodeID := sdpData.NodeID
-					sdpData.NodeID = nodeID
-					clustertree.SendToNodeInPool(poolID, targetNodeID, 2000, sdpData)
-				} else if chanMessage.Action == clustertree.SERVER_ACTION {
-					sendOp(2000, sdpData, 2001, SDP_OFFER_CLIENT_TIMEOUT, 1)
-				}
-			}
-		case 2001:
-			sdpData := chanMessage.Data.(SendSDPData)
-			if nodesStatus[sdpData.NodeID] == ACTIVE_STATUS {
-				if chanMessage.Action == clustertree.CLIENT_ACTION {
-					targetNodeID := sdpData.NodeID
-					sdpData.NodeID = nodeID
-					clustertree.SendToNodeInPool(poolID, targetNodeID, 2001, sdpData)
-				} else if chanMessage.Action == clustertree.SERVER_ACTION {
-					sendOp(2001, sdpData, 2002, SDP_OFFER_CLIENT_TIMEOUT, 1)
-				}
-			}
-		case 2002:
 			if chanMessage.Action == clustertree.SERVER_ACTION {
 				newNodePositionData := chanMessage.Data.(clustertree.NodePosition)
-
-				newNodePosition := &NewNodePositionData{
-					NodeID:                     nodeID,
-					Path:                       newNodePositionData.Path,
-					PartnerInt:                 newNodePositionData.PartnerInt,
-					CenterCluster:              newNodePositionData.CenterCluster,
-					ParentClusterNodeIDs:       newNodePositionData.ParentClusterNodeIDs,
-					ChildClusterPartnerNodeIDs: newNodePositionData.ChildClusterPartnerNodeIDs,
-					Updates:                    make(map[string]int),
-				}
-
-				expectedResponses := 0
+				updates := make(map[string]int)
 
 				calcUpdates := func(newNodeID, curNodeID string) {
 					if newNodeID != "" {
-						if nodesStatus[newNodeID] == NOT_ACTIVE_STATUS {
-							newNodePosition.Updates[newNodeID] = CONNECT_NODE
+						if nodesStatus[newNodeID] == INACTIVE_STATUS {
+							updates[newNodeID] = CONNECT_NODE
 							nodesStatus[newNodeID] = ACTIVE_STATUS
-							expectedResponses++
 						} else if newNodeID != curNodeID {
-							if newNodePosition.Updates[newNodeID] == DISCONNECT_NODE {
-								newNodePosition.Updates[newNodeID] = NO_CHANGE_NODE
+							if updates[newNodeID] == DISCONNECT_NODE {
+								updates[newNodeID] = NO_CHANGE_NODE
 								nodesStatus[newNodeID] = ACTIVE_STATUS
 							}
-							if _, ok := newNodePosition.Updates[curNodeID]; !ok {
-								newNodePosition.Updates[curNodeID] = DISCONNECT_NODE
-								nodesStatus[curNodeID] = NOT_ACTIVE_STATUS
+							if _, ok := updates[curNodeID]; !ok {
+								updates[curNodeID] = DISCONNECT_NODE
+								nodesStatus[curNodeID] = INACTIVE_STATUS
 							}
 						} else {
-							newNodePosition.Updates[newNodeID] = NO_CHANGE_NODE
+							updates[newNodeID] = NO_CHANGE_NODE
 						}
 					}
 				}
 
 				for i := 0; i < 3; i++ {
 					for j := 0; j < 3; j++ {
-						calcUpdates(newNodePosition.ParentClusterNodeIDs[i][j], curNodePosition.ParentClusterNodeIDs[i][j])
+						calcUpdates(newNodePositionData.ParentClusterNodeIDs[i][j], curNodePosition.ParentClusterNodeIDs[i][j])
 					}
 				}
 
 				for i := 0; i < 2; i++ {
-					calcUpdates(newNodePosition.ChildClusterPartnerNodeIDs[i], curNodePosition.ChildClusterPartnerNodeIDs[i])
+					calcUpdates(newNodePositionData.ChildClusterPartnerNodeIDs[i], curNodePosition.ChildClusterPartnerNodeIDs[i])
 				}
 
 				curNodePosition = newNodePositionData
 
-				sendOp(2002, newNodePosition, 2000, SDP_OFFER_CLIENT_TIMEOUT, expectedResponses)
-			} else if chanMessage.Action == clustertree.CLIENT_ACTION {
-				nodeStatusData := chanMessage.Data.(NodeStatusData)
+				sendOp(2000, curNodePosition, 2000, nodeID, DEFUALT_CLIENT_TIMEOUT)
 
+				for id, instruction := range updates {
+					switch instruction {
+					case CONNECT_NODE:
+						sendOp(2001, nil, 2003, id, SDP_OFFER_CLIENT_TIMEOUT)
+					case DISCONNECT_NODE:
+						sendOp(2002, nil, 2002, id, DEFUALT_CLIENT_TIMEOUT)
+					}
+				}
+			}
+		case 2001:
+			if chanMessage.Action == clustertree.CLIENT_ACTION {
+				nodeStatusData, ok := chanMessage.Data.(NodeStatusData)
+				if !ok {
+					writeErr = clientNotCompliant(ws)
+				}
 				if nodeStatusData.Status == ACTIVE_STATUS {
-					clustertree.SendToNodeInPool(poolID, nodeStatusData.NodeID, 2003, VerifyNodeConnectedData{
-						NodeID: nodeID,
-					})
-				} else if nodeStatusData.Status == NOT_ACTIVE_STATUS {
+					clustertree.SendToNodeInPool(poolID, nodeID, chanMessage.TargetNodeID, 2005, nil)
+				} else if nodeStatusData.Status == INACTIVE_STATUS {
 					// report
 				}
 			}
 		case 2003:
+			sdpData, ok := chanMessage.Data.(SendSDPData)
+			if !ok {
+				writeErr = clientNotCompliant(ws)
+			}
+			if nodesStatus[chanMessage.TargetNodeID] == ACTIVE_STATUS {
+				if chanMessage.Action == clustertree.CLIENT_ACTION {
+					clustertree.SendToNodeInPool(poolID, nodeID, chanMessage.TargetNodeID, 2003, sdpData)
+				} else if chanMessage.Action == clustertree.SERVER_ACTION {
+					sendOp(2003, sdpData, 2004, chanMessage.TargetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
+				}
+			}
 		case 2004:
+			sdpData, ok := chanMessage.Data.(SendSDPData)
+			if !ok {
+				writeErr = clientNotCompliant(ws)
+			}
+			if nodesStatus[chanMessage.TargetNodeID] == ACTIVE_STATUS {
+				if chanMessage.Action == clustertree.CLIENT_ACTION {
+					clustertree.SendToNodeInPool(poolID, nodeID, chanMessage.TargetNodeID, 2004, sdpData)
+				} else if chanMessage.Action == clustertree.SERVER_ACTION {
+					sendOp(2004, sdpData, 2001, chanMessage.TargetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
+				}
+			}
+		case 2005:
+			if chanMessage.Action == clustertree.SERVER_ACTION {
+				sendOp(2005, nil, 2005, chanMessage.TargetNodeID, DEFUALT_CLIENT_TIMEOUT)
+			} else if chanMessage.Action == clustertree.CLIENT_ACTION {
+				nodeStatusData, ok := chanMessage.Data.(NodeStatusData)
+				if !ok {
+					writeErr = clientNotCompliant(ws)
+				}
+				if nodeStatusData.Status == INACTIVE_STATUS {
+					// report
+				}
+			}
+		case 2006:
 			if chanMessage.Action == clustertree.SERVER_ACTION {
 				curNodeID := ""
-				updateData := chanMessage.Data.(clustertree.UpdateNodePositionData)
+				updateData := chanMessage.Data.(clustertree.UpdateSingleNodePositionData)
+
+				found := false
+				for i := 0; i < 3; i++ {
+					for j := 0; j < 3; j++ {
+						if curNodePosition.ParentClusterNodeIDs[i][j] == updateData.NodeID {
+							curNodePosition.ParentClusterNodeIDs[i][j] = ""
+							found = true
+							break
+						}
+					}
+				}
+
+				if !found {
+					for i := 0; i < 2; i++ {
+						if curNodePosition.ChildClusterPartnerNodeIDs[i] == updateData.NodeID {
+							curNodePosition.ChildClusterPartnerNodeIDs[i] = ""
+							break
+						}
+					}
+				}
+
 				if updateData.Position >= 9 {
 					curNodeID = curNodePosition.ChildClusterPartnerNodeIDs[updateData.Position-9]
 					curNodePosition.ChildClusterPartnerNodeIDs[updateData.Position-9] = updateData.NodeID
@@ -258,12 +332,16 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					curNodeID = curNodePosition.ParentClusterNodeIDs[int(updateData.Position/3)][(updateData.Position % 3)]
 					curNodePosition.ParentClusterNodeIDs[int(updateData.Position/3)][(updateData.Position % 3)] = updateData.NodeID
 				}
+
+				sendOp(2000, curNodePosition, 2000, nodeID, DEFUALT_CLIENT_TIMEOUT)
 				if updateData.NodeID == "" {
 					delete(nodesStatus, curNodeID)
-				} else if nodesStatus[updateData.NodeID] == NOT_ACTIVE_STATUS {
-					nodesStatus[curNodeID] = ACTIVE_STATUS
+				} else if nodesStatus[updateData.NodeID] == INACTIVE_STATUS {
+					nodesStatus[updateData.NodeID] = ACTIVE_STATUS
 				}
-				sendOp(2005, updateData, 2005, DEFUALT_CLIENT_TIMEOUT, 1)
+				if curNodeID != "" {
+					sendOp(2002, nil, 2002, curNodeID, DEFUALT_CLIENT_TIMEOUT)
+				}
 			}
 		}
 	}

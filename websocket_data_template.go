@@ -1,8 +1,8 @@
 package main
 
 const (
-	NOT_ACTIVE_STATUS = 0
-	ACTIVE_STATUS     = 1
+	INACTIVE_STATUS = 0
+	ACTIVE_STATUS   = 1
 
 	DISCONNECT_NODE = 0
 	CONNECT_NODE    = 1
@@ -10,45 +10,30 @@ const (
 )
 
 type AckPendingInfo struct {
-	responses  int
-	responseOp int
-	nodeID     string
+	ResponseOp   int
+	TargetNodeID string
 }
 
 type WSMessage struct {
-	Op   int
-	Key  string
-	Data interface{}
+	Op           int
+	Key          string
+	TargetNodeID string
+	Data         interface{}
 }
 
-func constructWSMessage(op int, data interface{}, key string) WSMessage {
+func constructWSMessage(op int, data interface{}, key string, targetNodeID string) WSMessage {
 	return WSMessage{
-		Op:   op,
-		Key:  key,
-		Data: data,
+		Op:           op,
+		Key:          key,
+		TargetNodeID: targetNodeID,
+		Data:         data,
 	}
 }
 
 type SendSDPData struct {
-	NodeID string
-	SDP    string
-}
-
-type NewNodePositionData struct {
-	NodeID                     string
-	Path                       []int
-	PartnerInt                 int
-	CenterCluster              bool
-	ParentClusterNodeIDs       [3][3]string
-	ChildClusterPartnerNodeIDs [2]string
-	Updates                    map[string]int
-}
-
-type VerifyNodeConnectedData struct {
-	NodeID string
+	SDP string
 }
 
 type NodeStatusData struct {
-	NodeID string
 	Status int
 }

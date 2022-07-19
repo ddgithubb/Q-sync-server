@@ -2,11 +2,19 @@ Message template:
 {
     Op: int,
     Key?: string
+    TargetNodeID?: string
     Data: {
 
     }
 }
 
+INTERNAL OP CODES:
+
+2006 - Update single node position
+    data: {
+        Position: int
+        NodeID: string
+    }
 
 WEBSOCKET SERVER OP CODES:
 
@@ -14,19 +22,7 @@ WEBSOCKET SERVER OP CODES:
 
 ...
 
-2000 - Send SDP
-    data: {
-        NodeID: string
-        SDP: string
-    }
-
-2001 - Answer SDP
-    data: {
-        NodeID: string
-        SDP: string
-    }
-
-2002 - New node position
+2000 - Update node position
     data: {
         NodeID string
         Path: []int
@@ -34,19 +30,23 @@ WEBSOCKET SERVER OP CODES:
         CenterCluster: bool
         ParentClusterNodeIDs: [3][3]string
         ChildClusterPartnerNodeIDs: [2]string
-        Updates: map[string]bool
     }
 
-2003 - Verify connected
+2001 - Connect Node
+
+2002 - Disconnect Node
+
+2003 - Send SDP
     data: {
-        NodeID: string
+        SDP: string
     }
 
-2004 - Update node position
+2004 - Answer SDP
     data: {
-        Position: int
-        NodeID: string
+        SDP: string
     }
+
+2005 - Verify connected
 
 WEBSCOKET CLIENT OP CODES:
 
@@ -54,27 +54,27 @@ WEBSCOKET CLIENT OP CODES:
 
 ...
 
-2000 - Send SDP
-    data: {
-        NodeID: string
-        SDP: string
-    }
+2000 - Updated node position
 
-2001 - Answer SDP
+2001 - Connected to Node
     data: {
-        NodeID: string
-        SDP: string
-    }
-
-2002 - New node position status
-    data: {
-        NodeID: string
         Status: int
     }
 
-2003 - Reply node status
+2002 - Disconnected Node
+
+2003 - Send SDP
     data: {
-        NodeID: string
+        SDP: string
+    }
+
+2004 - Answer SDP
+    data: {
+        SDP: string
+    }
+
+2005 - Report node status
+    data: {
         Status: int
     }
 
