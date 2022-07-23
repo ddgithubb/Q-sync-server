@@ -17,6 +17,7 @@ const (
 	HEARTBEAT_CLIENT_TIMEOUT = 10 * time.Second
 	DEFUALT_CLIENT_TIMEOUT   = 5 * time.Second
 	SDP_OFFER_CLIENT_TIMEOUT = 15 * time.Second
+	TIMEOUT_INTERVAL         = 5 * time.Second
 )
 
 var logger *log.Logger
@@ -39,6 +40,6 @@ func main() {
 
 	app.Use("/connect", InitializeSocket, websocket.New(WebsocketServer))
 
-	log.Fatal(app.Listen(strconv.Itoa(PORT)))
+	log.Fatal(app.Listen(":" + strconv.Itoa(PORT)))
 
 }

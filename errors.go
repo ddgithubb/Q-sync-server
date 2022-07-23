@@ -16,7 +16,7 @@ var errorCodesDescription = map[int]string{
 
 	// Websocket errors
 	40000: "Websocket upgrade error",
-	40001: "Invalid pool id",
+	40001: "",
 	40002: "",
 	40003: "",
 	40004: "",
@@ -26,6 +26,7 @@ var errorCodesDescription = map[int]string{
 	40008: "Websocket set read deadline error",
 	40009: "Websocket unexpected binary message",
 	40010: "Unrecognzied Op code",
+	40100: "Invalid pool id",
 }
 
 func handleUpgradeError(c *fiber.Ctx, code int, errorInfo ...string) error {
@@ -38,5 +39,9 @@ func handleUpgradeError(c *fiber.Ctx, code int, errorInfo ...string) error {
 }
 
 func handleWebsocketError(ws *websocket.Conn, code int, errorInfo ...string) {
-	logger.Println("IP:", ws.RemoteAddr().String(), "| Code:", code, "| Error info:", errorInfo)
+	ip := "not captured"
+	if ws != nil && ws.Conn != nil {
+		ip = ws.RemoteAddr().String()
+	}
+	logger.Println("IP:", ip, "| Code:", code, "| Error info:", errorInfo)
 }

@@ -13,7 +13,7 @@ func InitializeSocket(c *fiber.Ctx) error {
 		pool_id := c.Query("poolid")
 
 		if pool_id == "" {
-			return handleUpgradeError(c, 40001, pool_id)
+			return handleUpgradeError(c, 40100, pool_id)
 		}
 
 		c.Locals("poolid", pool_id)

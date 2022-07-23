@@ -1,16 +1,16 @@
 Message template:
 {
     Op: int,
-    Key?: string
-    TargetNodeID?: string
+    Key: string
+    TargetNodeID: string
     Data: {
 
     }
 }
 
-INTERNAL OP CODES:
+INTERNAL NODECHAN OP CODES:
 
-2006 - Update single node position
+2100 - Update single node position
     data: {
         Position: int
         NodeID: string
@@ -36,21 +36,28 @@ WEBSOCKET SERVER OP CODES:
 
 2002 - Disconnect Node
 
-2003 - Send SDP
+2003 - Send Offer
     data: {
         SDP: string
+        Status: string
     }
 
-2004 - Answer SDP
+2004 - Answer Offer
     data: {
         SDP: string
+        Status: string
     }
 
 2005 - Verify connected
 
+2006 - Report Node
+    data: {
+        ReportCode: int
+    }
+
 WEBSCOKET CLIENT OP CODES:
 
-1000 - WS heartbeat
+1000 - WS heartbeat 
 
 ...
 
@@ -63,19 +70,26 @@ WEBSCOKET CLIENT OP CODES:
 
 2002 - Disconnected Node
 
-2003 - Send SDP
+2003 - Send Offer
     data: {
         SDP: string
+        Status: string
     }
 
-2004 - Answer SDP
+2004 - Answer Offer
     data: {
         SDP: string
+        Status: int
     }
 
-2005 - Report node status
+2005 - Connection verification
     data: {
         Status: int
+    }
+
+2006 - Report node
+    data: {
+        ReportCode: int
     }
 
 WEBSOCKET ERROR OP CODES:
