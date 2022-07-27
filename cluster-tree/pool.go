@@ -73,7 +73,7 @@ func RemoveFromPool(poolID string, nodeID string) {
 }
 
 // Send Data to specific node in pool
-func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, op int, data interface{}) {
+func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, op int, data interface{}) bool {
 	poolShard := ActivePools.GetShard(poolID)
 
 	poolShard.RLock()
@@ -83,11 +83,13 @@ func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, op int,
 	poolShard.RUnlock()
 
 	if !ok {
-		return
+		return false
 	}
 
+	var node *Node
+
 	pool.RLock()
-	if node := pool.NodeMap[targetNodeID]; node != nil {
+	if node = pool.NodeMap[targetNodeID]; node != nil {
 		node.NodeChan <- NodeChanMessage{
 			Op:           op,
 			Action:       SERVER_ACTION,
@@ -96,4 +98,6 @@ func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, op int,
 		}
 	}
 	pool.RUnlock()
+
+	return node != nil
 }

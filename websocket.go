@@ -24,7 +24,7 @@ func clientNotCompliant(ws *websocket.Conn) error {
 	return errors.New("client not compliant")
 }
 
-func writeWSMessage(ws *websocket.Conn, msg WSMessage) error {
+func writeWSMessage(ws *websocket.Conn, msg interface{}) error {
 
 	if ws == nil || ws.Conn == nil {
 		return errors.New("conn closed")
@@ -37,7 +37,7 @@ func writeWSMessage(ws *websocket.Conn, msg WSMessage) error {
 		return err
 	}
 
-	fmt.Println("SEND WS:", string(b))
+	//fmt.Println("SEND WS:", string(b))
 
 	err = ws.WriteMessage(websocket.TextMessage, b)
 	if err != nil {
@@ -50,7 +50,7 @@ func writeWSMessage(ws *websocket.Conn, msg WSMessage) error {
 }
 
 func writeMessage(ws *websocket.Conn, op int, data interface{}) error {
-	return writeWSMessage(ws, constructWSMessage(op, data, "", ""))
+	return writeWSMessage(ws, constructLwtWSMessage(op, data))
 }
 
 func writeMessageWithTarget(ws *websocket.Conn, op int, data interface{}, key string, targetNodeID string) error {
@@ -68,14 +68,16 @@ func WebsocketServer(ws *websocket.Conn) {
 	// TODO
 	nodeID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 
+	closeChan := make(chan struct{})
 	nodeChan := make(chan clustertree.NodeChanMessage)
 
-	go nodeChanRecv(ws, poolID, nodeID, nodeChan)
+	go nodeChanRecv(ws, poolID, nodeID, nodeChan, closeChan)
 
 	clustertree.JoinPool(poolID, nodeID, nodeChan)
 
 	defer func() {
 		clustertree.RemoveFromPool(poolID, nodeID)
+		closeChan <- struct{}{}
 	}()
 
 	var (
@@ -105,7 +107,7 @@ func WebsocketServer(ws *websocket.Conn) {
 			break
 		}
 
-		fmt.Println("RECV WS:", string(b))
+		//fmt.Println("RECV WS:", string(b))
 
 		validOp = true
 		data = nil

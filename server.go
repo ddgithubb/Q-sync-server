@@ -8,6 +8,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -34,6 +37,10 @@ func init() {
 }
 
 func main() {
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	app := fiber.New()
 	defer app.Shutdown()

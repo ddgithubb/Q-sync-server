@@ -16,10 +16,12 @@ const (
 	CONNECT_NODE    = 1
 	NO_CHANGE_NODE  = 2
 
+	MY_REPORT              = -1
 	DISCONNECT_REPORT      = 0
 	RECONNECT_REPORT       = 1
-	UNRESPONSIVE_REPORT    = 2
+	UNRELIABLE_REPORT      = 2
 	MUNGED_MESSAGES_REPORT = 3
+	SPAM_REPORT            = 4
 )
 
 type AckPendingInfo struct {
@@ -28,11 +30,23 @@ type AckPendingInfo struct {
 	TargetNodeID string
 }
 
+type LwtWSMessage struct {
+	Op   int
+	Data interface{}
+}
+
 type WSMessage struct {
 	Op           int
 	Key          string
 	TargetNodeID string
 	Data         interface{}
+}
+
+func constructLwtWSMessage(op int, data interface{}) LwtWSMessage {
+	return LwtWSMessage{
+		Op:   op,
+		Data: data,
+	}
 }
 
 func constructWSMessage(op int, data interface{}, key string, targetNodeID string) WSMessage {

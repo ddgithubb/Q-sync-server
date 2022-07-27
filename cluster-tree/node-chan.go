@@ -15,5 +15,5 @@ type NodeChanMessage struct {
 
 type UpdateSingleNodePositionData struct {
 	Position int
-	NodeID   string
+	Node     BasicNode
 }

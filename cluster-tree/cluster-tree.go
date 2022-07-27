@@ -8,18 +8,24 @@ import (
 
 type Node struct {
 	NodeID             string
+	UserID             string
 	NodeChan           chan NodeChanMessage
 	ContainerNodePanel *NodePanel
 	PartnerInt         int
 	Created            time.Time
 }
 
+type BasicNode struct {
+	NodeID string
+	UserID string
+}
+
 type NodePosition struct {
 	Path                 []int
 	PartnerInt           int
 	CenterCluster        bool
-	ParentClusterNodes   [3][3]string //connector panels is index 2
-	ChildClusterPartners [2]string
+	ParentClusterNodes   [3][3]BasicNode //connector panels is index 2
+	ChildClusterPartners [2]BasicNode
 }
 
 type NodePanel struct {
@@ -78,24 +84,32 @@ func (nc *NodeCluster) getNodeAmount() int {
 	return amount
 }
 
+func (n *Node) toBasicNode() BasicNode {
+	return BasicNode{
+		NodeID: n.NodeID,
+		UserID: n.UserID,
+	}
+}
+
 func (n *Node) updateNodePosition() {
 
-	var parent_cluster_node_ids [3][3]string
-	var child_cluster_node_ids [2]string
+	var parent_cluster_node_ids [3][3]BasicNode
+	var child_cluster_node_ids [2]BasicNode
 
 	for i := 0; i < 3; i++ {
 		if n.ContainerNodePanel.ParentCluster.Center || i == n.ContainerNodePanel.getPanelNumber() {
+			position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
 			for j := 0; j < 3; j++ {
 				node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[j]
 				if node != nil {
-					parent_cluster_node_ids[i][j] = node.NodeID
+					parent_cluster_node_ids[i][j] = node.toBasicNode()
 					if node != n {
 						node.NodeChan <- NodeChanMessage{
 							Op:     2100,
 							Action: SERVER_ACTION,
 							Data: UpdateSingleNodePositionData{
-								Position: (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt,
-								NodeID:   n.NodeID,
+								Position: position,
+								Node:     n.toBasicNode(),
 							},
 						}
 					}
@@ -105,17 +119,17 @@ func (n *Node) updateNodePosition() {
 		} else {
 			position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
 			if i == 2 {
-				position = 9 + n.PartnerInt
+				position = 9 + n.ContainerNodePanel.getPanelNumber()
 			}
 			node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[n.PartnerInt]
 			if node != nil {
-				parent_cluster_node_ids[i][n.PartnerInt] = node.NodeID
+				parent_cluster_node_ids[i][n.PartnerInt] = node.toBasicNode()
 				node.NodeChan <- NodeChanMessage{
 					Op:     2100,
 					Action: SERVER_ACTION,
 					Data: UpdateSingleNodePositionData{
 						Position: position,
-						NodeID:   n.NodeID,
+						Node:     n.toBasicNode(),
 					},
 				}
 			}
@@ -123,16 +137,17 @@ func (n *Node) updateNodePosition() {
 	}
 
 	if n.ContainerNodePanel.ChildCluster != nil {
+		position := 6 + n.PartnerInt
 		for i := 0; i < 2; i++ {
 			node := n.ContainerNodePanel.ChildCluster.Panels[i].Nodes[n.PartnerInt]
 			if node != nil {
-				child_cluster_node_ids[i] = node.NodeID
+				child_cluster_node_ids[i] = node.toBasicNode()
 				node.NodeChan <- NodeChanMessage{
 					Op:     2100,
 					Action: SERVER_ACTION,
 					Data: UpdateSingleNodePositionData{
-						Position: 6 + n.PartnerInt,
-						NodeID:   n.NodeID,
+						Position: position,
+						Node:     n.toBasicNode(),
 					},
 				}
 			}
@@ -302,6 +317,7 @@ func (pool *NodePool) RemoveNode(node_id string) {
 	partner_int := n.PartnerInt
 
 	n.ContainerNodePanel.Nodes[n.PartnerInt] = nil
+	delete(pool.NodeMap, n.NodeID)
 
 	for {
 		if cur_panel.ChildCluster == nil {
@@ -370,13 +386,8 @@ func (pool *NodePool) RemoveNode(node_id string) {
 	}
 
 	n.NodeID = ""
+	n.UserID = ""
 	n.updateNodePosition()
-
-	delete(pool.NodeMap, n.NodeID)
-	n.NodeChan <- NodeChanMessage{
-		Op: 0,
-	}
-
 }
 
 func NewNodePool() *NodePool {

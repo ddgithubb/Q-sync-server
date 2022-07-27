@@ -14,14 +14,14 @@ func opRequiresKey(op int) bool {
 	return op != 2006
 }
 
-func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan clustertree.NodeChanMessage) {
+func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan clustertree.NodeChanMessage, closeChan chan struct{}) {
 
 	var (
 		msg       clustertree.NodeChanMessage
-		ok        bool
+		ok        bool = true
 		clientErr error
 
-		chanClosed   int32
+		chanClosing  int32
 		timeout      bool
 		timeoutTimer chan struct{} = make(chan struct{})
 
@@ -36,11 +36,11 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 
 	)
 
-	atomic.StoreInt32(&chanClosed, 0)
+	atomic.StoreInt32(&chanClosing, 0)
 
 	go func() {
 		for {
-			if atomic.LoadInt32(&chanClosed) == 1 {
+			if atomic.LoadInt32(&chanClosing) == 1 {
 				close(timeoutTimer)
 				return
 			}
@@ -79,11 +79,6 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			return
 		}
 
-		if len(curReports) == 2 {
-			clientErr = clientNotCompliant(ws)
-			return
-		}
-
 		allReportsCount++
 
 		_, ok := curReports[targetNodeID]
@@ -94,12 +89,27 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			}
 		}
 
-		curReports[targetNodeID] = reportCode
-
 		if action == SERVER_ACTION {
+			if len(curReports) >= 2 {
+				l := len(curReports)
+				for _, code := range curReports {
+					if code == -1 {
+						l--
+					}
+				}
+				if l >= 2 {
+					clientErr = clientNotCompliant(ws)
+					return
+				}
+			}
+			curReports[targetNodeID] = reportCode
 			connectNode(targetNodeID)
 		} else if action == CLIENT_ACTION {
-			clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, 2006, ReportNodeData{ReportCode: reportCode})
+			curReports[targetNodeID] = MY_REPORT
+			if !clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, 2006, ReportNodeData{ReportCode: reportCode}) {
+				delete(curReports, targetNodeID)
+			}
+
 		}
 	}
 
@@ -116,20 +126,22 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					clientErr = clientNotCompliant(ws)
 				}
 			}
-		}
-
-		if timeout {
-			continue
-		}
-
-		if !ok || msg.Op == 0 {
-			atomic.StoreInt32(&chanClosed, 1)
+		case <-closeChan:
+			atomic.StoreInt32(&chanClosing, 1)
 			for {
 				if _, ok := <-timeoutTimer; !ok {
 					break
 				}
 			}
 			return
+		}
+
+		if !ok {
+			continue
+		}
+
+		if timeout {
+			continue
 		}
 
 		if clientErr != nil {
@@ -176,12 +188,12 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 
 				for i := 0; i < 3; i++ {
 					for j := 0; j < 3; j++ {
-						calcUpdates(newNodePositionData.ParentClusterNodes[i][j], curNodePosition.ParentClusterNodes[i][j])
+						calcUpdates(newNodePositionData.ParentClusterNodes[i][j].NodeID, curNodePosition.ParentClusterNodes[i][j].NodeID)
 					}
 				}
 
 				for i := 0; i < 2; i++ {
-					calcUpdates(newNodePositionData.ChildClusterPartners[i], curNodePosition.ChildClusterPartners[i])
+					calcUpdates(newNodePositionData.ChildClusterPartners[i].NodeID, curNodePosition.ChildClusterPartners[i].NodeID)
 				}
 
 				curNodePosition = newNodePositionData
@@ -267,18 +279,26 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			if !ok {
 				clientErr = clientNotCompliant(ws)
 			}
+			for key, info := range ackPending {
+				if msg.TargetNodeID == info.TargetNodeID {
+					if (info.ResponseOp == 2001 || info.ResponseOp == 2003 || info.ResponseOp == 2004) && nodeStates[info.TargetNodeID] == INACTIVE_STATE {
+						delete(ackPending, key)
+						return
+					}
+				}
+			}
 			reportNode(msg.TargetNodeID, reportNodeData.ReportCode, msg.Action)
 		case 2100:
 			if msg.Action == SERVER_ACTION {
 				curNodeID := ""
 				updateData := msg.Data.(clustertree.UpdateSingleNodePositionData)
 
-				if updateData.NodeID != "" {
+				if updateData.Node.NodeID != "" {
 					found := false
 					for i := 0; i < 3; i++ {
 						for j := 0; j < 3; j++ {
-							if curNodePosition.ParentClusterNodes[i][j] == updateData.NodeID {
-								curNodePosition.ParentClusterNodes[i][j] = ""
+							if curNodePosition.ParentClusterNodes[i][j].NodeID == updateData.Node.NodeID {
+								curNodePosition.ParentClusterNodes[i][j].NodeID = ""
 								found = true
 								break
 							}
@@ -287,8 +307,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 
 					if !found {
 						for i := 0; i < 2; i++ {
-							if curNodePosition.ChildClusterPartners[i] == updateData.NodeID {
-								curNodePosition.ChildClusterPartners[i] = ""
+							if curNodePosition.ChildClusterPartners[i].NodeID == updateData.Node.NodeID {
+								curNodePosition.ChildClusterPartners[i].NodeID = ""
 								break
 							}
 						}
@@ -296,18 +316,18 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				}
 
 				if updateData.Position >= 9 {
-					curNodeID = curNodePosition.ChildClusterPartners[updateData.Position-9]
-					curNodePosition.ChildClusterPartners[updateData.Position-9] = updateData.NodeID
+					curNodeID = curNodePosition.ChildClusterPartners[updateData.Position-9].NodeID
+					curNodePosition.ChildClusterPartners[updateData.Position-9] = updateData.Node
 				} else {
-					curNodeID = curNodePosition.ParentClusterNodes[int(updateData.Position/3)][(updateData.Position % 3)]
-					curNodePosition.ParentClusterNodes[int(updateData.Position/3)][(updateData.Position % 3)] = updateData.NodeID
+					curNodeID = curNodePosition.ParentClusterNodes[int(updateData.Position/3)][(updateData.Position % 3)].NodeID
+					curNodePosition.ParentClusterNodes[int(updateData.Position/3)][(updateData.Position % 3)] = updateData.Node
 				}
 
 				sendOp(2000, curNodePosition, 2000, nodeID, DEFUALT_CLIENT_TIMEOUT)
-				if updateData.NodeID == "" {
+				if updateData.Node.NodeID == "" {
 					delete(nodeStates, curNodeID)
-				} else if nodeStates[updateData.NodeID] == INACTIVE_STATE {
-					nodeStates[updateData.NodeID] = ACTIVE_STATE
+				} else if nodeStates[updateData.Node.NodeID] == INACTIVE_STATE {
+					nodeStates[updateData.Node.NodeID] = ACTIVE_STATE
 				}
 				if curNodeID != "" {
 					disconnectNode(curNodeID)
