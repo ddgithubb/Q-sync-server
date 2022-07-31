@@ -279,14 +279,6 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			if !ok {
 				clientErr = clientNotCompliant(ws)
 			}
-			for key, info := range ackPending {
-				if msg.TargetNodeID == info.TargetNodeID {
-					if (info.ResponseOp == 2001 || info.ResponseOp == 2003 || info.ResponseOp == 2004) && nodeStates[info.TargetNodeID] == INACTIVE_STATE {
-						delete(ackPending, key)
-						return
-					}
-				}
-			}
 			reportNode(msg.TargetNodeID, reportNodeData.ReportCode, msg.Action)
 		case 2100:
 			if msg.Action == SERVER_ACTION {
