@@ -141,18 +141,20 @@ func WebsocketServer(ws *websocket.Conn) {
 			data = *d
 		default:
 			validOp = false
-			handleWebsocketError(ws, 40010, strconv.Itoa(jsoniter.Get(b, "Op").ToInt()))
 		}
 
-		if validOp {
-			if op >= 2000 && op < 3000 {
-				nodeChan <- clustertree.NodeChanMessage{
-					Op:           op,
-					Action:       clustertree.CLIENT_ACTION,
-					Key:          jsoniter.Get(b, "Key").ToString(),
-					TargetNodeID: jsoniter.Get(b, "TargetNodeID").ToString(),
-					Data:         data,
-				}
+		if !validOp {
+			handleWebsocketError(ws, 40010, strconv.Itoa(jsoniter.Get(b, "Op").ToInt()))
+			break
+		}
+
+		if op >= 2000 && op < 3000 {
+			nodeChan <- clustertree.NodeChanMessage{
+				Op:           op,
+				Action:       clustertree.CLIENT_ACTION,
+				Key:          jsoniter.Get(b, "Key").ToString(),
+				TargetNodeID: jsoniter.Get(b, "TargetNodeID").ToString(),
+				Data:         data,
 			}
 		}
 	}

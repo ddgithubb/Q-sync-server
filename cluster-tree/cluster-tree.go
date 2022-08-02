@@ -21,11 +21,11 @@ type BasicNode struct {
 }
 
 type NodePosition struct {
-	Path                 []int
-	PartnerInt           int
-	CenterCluster        bool
-	ParentClusterNodes   [3][3]BasicNode //connector panels is index 2
-	ChildClusterPartners [2]BasicNode
+	Path               []int
+	PartnerInt         int
+	CenterCluster      bool
+	ParentClusterNodes [3][3]BasicNode //connector panels is index 2
+	ChildClusterNodes  [2][3]BasicNode
 }
 
 type NodePanel struct {
@@ -91,46 +91,33 @@ func (n *Node) toBasicNode() BasicNode {
 	}
 }
 
+func (n *Node) updateSingleNodePosition(position int, basicNode BasicNode) {
+	n.NodeChan <- NodeChanMessage{
+		Op:     2100,
+		Action: SERVER_ACTION,
+		Data: UpdateSingleNodePositionData{
+			Position: position,
+			Node:     basicNode,
+		},
+	}
+}
+
 func (n *Node) updateNodePosition() {
 
 	var parent_cluster_node_ids [3][3]BasicNode
-	var child_cluster_node_ids [2]BasicNode
+	var child_cluster_node_ids [2][3]BasicNode
 
 	for i := 0; i < 3; i++ {
-		if n.ContainerNodePanel.ParentCluster.Center || i == n.ContainerNodePanel.getPanelNumber() {
-			position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
-			for j := 0; j < 3; j++ {
-				node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[j]
-				if node != nil {
-					parent_cluster_node_ids[i][j] = node.toBasicNode()
-					if node != n {
-						node.NodeChan <- NodeChanMessage{
-							Op:     2100,
-							Action: SERVER_ACTION,
-							Data: UpdateSingleNodePositionData{
-								Position: position,
-								Node:     n.toBasicNode(),
-							},
-						}
-					}
-
-				}
-			}
-		} else {
-			position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
-			if i == 2 {
-				position = 9 + n.ContainerNodePanel.getPanelNumber()
-			}
-			node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[n.PartnerInt]
+		position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
+		if i == 2 && !n.ContainerNodePanel.ParentCluster.Center {
+			position = position + 9
+		}
+		for j := 0; j < 3; j++ {
+			node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[j]
 			if node != nil {
-				parent_cluster_node_ids[i][n.PartnerInt] = node.toBasicNode()
-				node.NodeChan <- NodeChanMessage{
-					Op:     2100,
-					Action: SERVER_ACTION,
-					Data: UpdateSingleNodePositionData{
-						Position: position,
-						Node:     n.toBasicNode(),
-					},
+				parent_cluster_node_ids[i][j] = node.toBasicNode()
+				if node != n {
+					node.updateSingleNodePosition(position, n.toBasicNode())
 				}
 			}
 		}
@@ -139,16 +126,11 @@ func (n *Node) updateNodePosition() {
 	if n.ContainerNodePanel.ChildCluster != nil {
 		position := 6 + n.PartnerInt
 		for i := 0; i < 2; i++ {
-			node := n.ContainerNodePanel.ChildCluster.Panels[i].Nodes[n.PartnerInt]
-			if node != nil {
-				child_cluster_node_ids[i] = node.toBasicNode()
-				node.NodeChan <- NodeChanMessage{
-					Op:     2100,
-					Action: SERVER_ACTION,
-					Data: UpdateSingleNodePositionData{
-						Position: position,
-						Node:     n.toBasicNode(),
-					},
+			for j := 0; j < 3; j++ {
+				node := n.ContainerNodePanel.ChildCluster.Panels[i].Nodes[j]
+				if node != nil {
+					child_cluster_node_ids[i][j] = node.toBasicNode()
+					node.updateSingleNodePosition(position, n.toBasicNode())
 				}
 			}
 		}
@@ -159,11 +141,11 @@ func (n *Node) updateNodePosition() {
 			Op:     2000,
 			Action: SERVER_ACTION,
 			Data: NodePosition{
-				Path:                 n.ContainerNodePanel.Path,
-				PartnerInt:           n.PartnerInt,
-				CenterCluster:        n.ContainerNodePanel.ParentCluster.Center,
-				ParentClusterNodes:   parent_cluster_node_ids,
-				ChildClusterPartners: child_cluster_node_ids,
+				Path:               n.ContainerNodePanel.Path,
+				PartnerInt:         n.PartnerInt,
+				CenterCluster:      n.ContainerNodePanel.ParentCluster.Center,
+				ParentClusterNodes: parent_cluster_node_ids,
+				ChildClusterNodes:  child_cluster_node_ids,
 			},
 		}
 	}

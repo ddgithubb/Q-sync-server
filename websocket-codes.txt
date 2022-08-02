@@ -87,7 +87,7 @@ WEBSCOKET CLIENT OP CODES:
         Status: int
     }
 
-2006 - Report node
+2006 - Report nod2
     data: {
         ReportCode: int
     }
