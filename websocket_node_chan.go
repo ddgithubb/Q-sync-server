@@ -14,6 +14,15 @@ func opRequiresKey(op int) bool {
 	return op != 2006
 }
 
+func getThirdPanelNumber(panelA, panelB int) int {
+	if panelA == 1 && panelB == 2 || panelA == 2 && panelB == 1 {
+		return 0
+	} else if panelA == 0 && panelB == 2 || panelA == 2 && panelB == 0 {
+		return 1
+	}
+	return 2
+}
+
 func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan clustertree.NodeChanMessage, closeChan chan struct{}) {
 
 	var (
@@ -74,10 +83,10 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		sendOp(2001, nil, 2003, targetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
 	}
 
-	disconnectNode := func(targetNodeID string) {
+	disconnectNode := func(targetNodeID string, removeFromPool bool) {
 		delete(nodeStates, targetNodeID)
 		delete(curReports, targetNodeID)
-		sendOp(2002, nil, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
+		sendOp(2002, DisconnectData{RemoveFromPool: removeFromPool}, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
 	}
 
 	reportNode := func(targetNodeID string, reportCode int, action int) {
@@ -117,17 +126,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 	}
 
-	updateNodePosition := func(connect bool) {
+	updateNodePosition := func(promoted bool, removeNodeID string) {
 		connectNodes := make(map[string]bool)
-
-		getThirdPanelNumber := func(panelA, panelB int) int {
-			if panelA == 1 && panelB == 2 {
-				return 0
-			} else if panelA == 2 && panelB == 0 {
-				return 1
-			}
-			return 2
-		}
 
 		partnerInt := curNodePosition.PartnerInt
 		panelNumber := curNodePosition.Path[len(curNodePosition.Path)-1]
@@ -151,14 +151,22 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					}
 				}
 				if nodeID != "" {
-					connectNodes[nodeID] = true
+					if panelNumber > i {
+						connectNodes[nodeID] = true
+					} else {
+						connectNodes[nodeID] = false
+					}
 				}
 			} else {
 				for j := 0; j < 3; j++ {
 					if j != partnerInt {
 						nodeID := curNodePosition.ParentClusterNodes[i][j].NodeID
 						if nodeID != "" {
-							connectNodes[nodeID] = true
+							if promoted {
+								connectNodes[nodeID] = true
+							} else {
+								connectNodes[nodeID] = false
+							}
 							neighbouringNodesCount++
 						}
 					}
@@ -190,39 +198,46 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 						if j != partnerInt {
 							nodeID := curNodePosition.ParentClusterNodes[i][j].NodeID
 							if nodeID != "" {
-								connectNodes[nodeID] = true
+								if panelNumber > i {
+									connectNodes[nodeID] = true
+								} else {
+									connectNodes[nodeID] = false
+								}
 							}
 						}
 					}
 				}
 			}
 		} else if neighbouringNodesCount == 1 {
+			nodeID := ""
+			panel := 0
 			if curNodePosition.ParentClusterNodes[panelNumber][(partnerInt+1)%3].NodeID == "" {
 				// from lower panel
-				panel := 0
+				panel = 0
 				if panelNumber == 0 {
 					panel = 1
 				}
-				nodeID := curNodePosition.ParentClusterNodes[panel][(partnerInt+1)%3].NodeID
-				if nodeID != "" {
-					connectNodes[nodeID] = true
-				}
+				nodeID = curNodePosition.ParentClusterNodes[panel][(partnerInt+1)%3].NodeID
 			} else if curNodePosition.ParentClusterNodes[panelNumber][(partnerInt+2)%3].NodeID == "" {
 				// from higher panel
-				panel := 2
+				panel = 2
 				if panelNumber == 2 {
 					panel = 1
 				}
-				nodeID := curNodePosition.ParentClusterNodes[panel][(partnerInt+2)%3].NodeID
-				if nodeID != "" {
+				nodeID = curNodePosition.ParentClusterNodes[panel][(partnerInt+2)%3].NodeID
+			}
+			if nodeID != "" {
+				if panelNumber > panel {
 					connectNodes[nodeID] = true
+				} else {
+					connectNodes[nodeID] = false
 				}
 			}
 		}
 
 		sendOp(2000, curNodePosition, 2000, nodeID, DEFUALT_CLIENT_TIMEOUT)
 
-		for id := range connectNodes {
+		for id, connect := range connectNodes {
 			if nodeStates[id] == INACTIVE_STATE {
 				if connect {
 					connectNode(id)
@@ -232,8 +247,12 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 
 		for id := range nodeStates {
-			if !connectNodes[id] {
-				disconnectNode(id)
+			if _, ok := connectNodes[id]; !ok {
+				if removeNodeID != "" && removeNodeID == id {
+					disconnectNode(id, true)
+				} else {
+					disconnectNode(id, false)
+				}
 			}
 		}
 
@@ -295,7 +314,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				newNodePositionData := msg.Data.(clustertree.NodePosition)
 				curNodePosition = newNodePositionData
 
-				updateNodePosition(true)
+				updateNodePosition(true, "")
 			}
 		case 2001:
 			nodeStatusData, ok := msg.Data.(NodeStatusData)
@@ -327,6 +346,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				} else if msg.Action == SERVER_ACTION {
 					sendOp(2003, sdpData, 2004, msg.TargetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
 				}
+			} else {
+				fmt.Println("!!! 2003 NOT ACTIVE", msg.TargetNodeID)
 			}
 		case 2004:
 			sdpData, ok := msg.Data.(SDPData)
@@ -392,14 +413,23 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					}
 				}
 
+				curNodeID := ""
+
 				if updateData.Position >= 9 {
 					position := updateData.Position - 9
+					curNodeID = curNodePosition.ChildClusterNodes[int(position/3)][position%3].NodeID
 					curNodePosition.ChildClusterNodes[int(position/3)][position%3] = updateData.Node
 				} else {
+					curNodeID = curNodePosition.ParentClusterNodes[int(updateData.Position/3)][updateData.Position%3].NodeID
 					curNodePosition.ParentClusterNodes[int(updateData.Position/3)][updateData.Position%3] = updateData.Node
 				}
 
-				updateNodePosition(false)
+				if updateData.Node.NodeID == "" {
+					updateNodePosition(false, curNodeID)
+				} else {
+					updateNodePosition(false, "")
+				}
+
 			}
 		}
 	}

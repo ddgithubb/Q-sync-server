@@ -65,6 +65,10 @@ type SDPData struct {
 	Status int
 }
 
+type DisconnectData struct {
+	RemoveFromPool bool
+}
+
 type NodeStatusData struct {
 	Status int
 }

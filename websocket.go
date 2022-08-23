@@ -37,7 +37,7 @@ func writeWSMessage(ws *websocket.Conn, msg interface{}) error {
 		return err
 	}
 
-	//fmt.Println("SEND WS:", string(b))
+	// fmt.Println("SEND WS:", string(b))
 
 	err = ws.WriteMessage(websocket.TextMessage, b)
 	if err != nil {
@@ -66,6 +66,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	// 2. Validate that poolID is valid via the pool manager
 	// TODO
+	userID := "TEST_USER_ID"
 	nodeID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 
 	closeChan := make(chan struct{})
@@ -73,7 +74,9 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	go nodeChanRecv(ws, poolID, nodeID, nodeChan, closeChan)
 
-	clustertree.JoinPool(poolID, nodeID, nodeChan)
+	clustertree.JoinPool(poolID, nodeID, userID, nodeChan)
+
+	fmt.Println(nodeID, "JOINED MAIN POOL")
 
 	defer func() {
 		clustertree.RemoveFromPool(poolID, nodeID)
@@ -99,7 +102,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 		if mt, b, err = ws.ReadMessage(); err != nil {
 			// i/o timeout is late heartbeat
-			fmt.Println("WS read err", err)
+			fmt.Println("WS read err", err, "| NodeID", nodeID)
 			break
 		}
 		if mt == websocket.BinaryMessage {
@@ -107,7 +110,7 @@ func WebsocketServer(ws *websocket.Conn) {
 			break
 		}
 
-		//fmt.Println("RECV WS:", string(b))
+		// fmt.Println("RECV WS:", string(b))
 
 		validOp = true
 		data = nil

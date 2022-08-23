@@ -108,6 +108,9 @@ func (n *Node) updateNodePosition() {
 	var child_cluster_node_ids [2][3]BasicNode
 
 	for i := 0; i < 3; i++ {
+		// if !n.ContainerNodePanel.ParentCluster.Center && i != 2 && i != n.ContainerNodePanel.getPanelNumber() {
+		// 	continue
+		// }
 		position := (n.ContainerNodePanel.getPanelNumber() * 3) + n.PartnerInt
 		if i == 2 && !n.ContainerNodePanel.ParentCluster.Center {
 			position = position + 9
@@ -225,7 +228,7 @@ func (pool *NodePool) addNewClusterTreeLevel() {
 	pool.ClusterTree = append(ct, new_cluster_level)
 }
 
-func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
+func (pool *NodePool) AddNode(node_id string, user_id string, node_chan chan NodeChanMessage) {
 	ct := pool.ClusterTree
 	var new_node *Node
 
@@ -265,6 +268,7 @@ func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
 				if ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index].Nodes[j] == nil {
 					new_node = &Node{
 						NodeID:             node_id,
+						UserID:             user_id,
 						NodeChan:           node_chan,
 						ContainerNodePanel: ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index],
 						PartnerInt:         j,
@@ -280,7 +284,7 @@ func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
 
 	if !added {
 		pool.addNewClusterTreeLevel()
-		pool.AddNode(node_id, node_chan)
+		pool.AddNode(node_id, user_id, node_chan)
 	} else {
 		new_node.updateNodePosition()
 		pool.NodeMap[new_node.NodeID] = new_node

@@ -24,17 +24,19 @@ WEBSOCKET SERVER OP CODES:
 
 2000 - Update node position
     data: {
-        NodeID string
         Path: []int
         PartnerInt: int
         CenterCluster: bool
         ParentClusterNodeIDs: [3][3]string
-        ChildClusterPartnerNodeIDs: [2]string
+        ChildClusterPartnerNodeIDs: [2][3]string
     }
 
 2001 - Connect Node
 
 2002 - Disconnect Node
+    data: {
+        RemoveFromPool: boolean
+    }
 
 2003 - Send Offer
     data: {
@@ -87,10 +89,12 @@ WEBSCOKET CLIENT OP CODES:
         Status: int
     }
 
-2006 - Report nod2
+2006 - Report node
     data: {
         ReportCode: int
     }
+
+2010 - 
 
 WEBSOCKET ERROR OP CODES:
 

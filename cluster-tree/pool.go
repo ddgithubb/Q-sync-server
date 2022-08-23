@@ -32,7 +32,7 @@ func newConcPoolShards() ConcPoolShards {
 }
 
 // Joins pool based on pool id, creates a pool IF NOT EXIST
-func JoinPool(poolID string, nodeID string, nodeChan chan NodeChanMessage) {
+func JoinPool(poolID string, nodeID string, userID string, nodeChan chan NodeChanMessage) {
 	var pool *NodePool
 
 	poolShard := ActivePools.GetShard(poolID)
@@ -49,7 +49,7 @@ func JoinPool(poolID string, nodeID string, nodeChan chan NodeChanMessage) {
 	poolShard.Unlock()
 
 	pool.Lock()
-	pool.AddNode(nodeID, nodeChan)
+	pool.AddNode(nodeID, userID, nodeChan)
 	pool.Unlock()
 }
 
