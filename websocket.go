@@ -66,7 +66,6 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	// 2. Validate that poolID is valid via the pool manager
 	// TODO
-	userID := "TEST_USER_ID"
 	nodeID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 
 	closeChan := make(chan struct{})
@@ -74,7 +73,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	go nodeChanRecv(ws, poolID, nodeID, nodeChan, closeChan)
 
-	clustertree.JoinPool(poolID, nodeID, userID, nodeChan)
+	clustertree.JoinPool(poolID, nodeID, nodeChan)
 
 	fmt.Println(nodeID, "JOINED MAIN POOL")
 

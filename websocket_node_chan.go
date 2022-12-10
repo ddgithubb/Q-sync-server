@@ -134,15 +134,15 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		neighbouringNodesCount := 0
 		for i := 0; i < 3; i++ {
 			if i != panelNumber {
-				nodeID := curNodePosition.ParentClusterNodes[i][partnerInt].NodeID
+				nodeID := curNodePosition.ParentClusterNodeIDs[i][partnerInt]
 				if nodeID == "" {
 					greaterPanel := panelNumber > getThirdPanelNumber(i, panelNumber)
 					for j := partnerInt + 1; j < partnerInt+3; j++ {
 						id := ""
 						if greaterPanel { // this panel is greater than opposing panel
-							id = curNodePosition.ParentClusterNodes[i][j%3].NodeID
+							id = curNodePosition.ParentClusterNodeIDs[i][j%3]
 						} else {
-							id = curNodePosition.ParentClusterNodes[i][(2*partnerInt+3-j)%3].NodeID
+							id = curNodePosition.ParentClusterNodeIDs[i][(2*partnerInt+3-j)%3]
 						}
 						if id != "" {
 							nodeID = id
@@ -160,7 +160,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			} else {
 				for j := 0; j < 3; j++ {
 					if j != partnerInt {
-						nodeID := curNodePosition.ParentClusterNodes[i][j].NodeID
+						nodeID := curNodePosition.ParentClusterNodeIDs[i][j]
 						if nodeID != "" {
 							if promoted {
 								connectNodes[nodeID] = true
@@ -175,10 +175,10 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 
 		for i := 0; i < 2; i++ {
-			nodeID := curNodePosition.ChildClusterNodes[i][partnerInt].NodeID
+			nodeID := curNodePosition.ChildClusterNodeIDs[i][partnerInt]
 			if nodeID == "" {
 				for j := partnerInt + 1; j < partnerInt+3; j++ {
-					id := curNodePosition.ChildClusterNodes[i][j%3].NodeID
+					id := curNodePosition.ChildClusterNodeIDs[i][j%3]
 					if id != "" {
 						nodeID = id
 						break
@@ -196,7 +196,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				if i != panelNumber {
 					for j := 0; j < 3; j++ {
 						if j != partnerInt {
-							nodeID := curNodePosition.ParentClusterNodes[i][j].NodeID
+							nodeID := curNodePosition.ParentClusterNodeIDs[i][j]
 							if nodeID != "" {
 								if panelNumber > i {
 									connectNodes[nodeID] = true
@@ -211,20 +211,20 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		} else if neighbouringNodesCount == 1 {
 			nodeID := ""
 			panel := 0
-			if curNodePosition.ParentClusterNodes[panelNumber][(partnerInt+1)%3].NodeID == "" {
+			if curNodePosition.ParentClusterNodeIDs[panelNumber][(partnerInt+1)%3] == "" {
 				// from lower panel
 				panel = 0
 				if panelNumber == 0 {
 					panel = 1
 				}
-				nodeID = curNodePosition.ParentClusterNodes[panel][(partnerInt+1)%3].NodeID
-			} else if curNodePosition.ParentClusterNodes[panelNumber][(partnerInt+2)%3].NodeID == "" {
+				nodeID = curNodePosition.ParentClusterNodeIDs[panel][(partnerInt+1)%3]
+			} else if curNodePosition.ParentClusterNodeIDs[panelNumber][(partnerInt+2)%3] == "" {
 				// from higher panel
 				panel = 2
 				if panelNumber == 2 {
 					panel = 1
 				}
-				nodeID = curNodePosition.ParentClusterNodes[panel][(partnerInt+2)%3].NodeID
+				nodeID = curNodePosition.ParentClusterNodeIDs[panel][(partnerInt+2)%3]
 			}
 			if nodeID != "" {
 				if panelNumber > panel {
@@ -389,12 +389,12 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			if msg.Action == SERVER_ACTION {
 				updateData := msg.Data.(clustertree.UpdateSingleNodePositionData)
 
-				if updateData.Node.NodeID != "" {
+				if updateData.NodeID != "" {
 					found := false
 					for i := 0; i < 3; i++ {
 						for j := 0; j < 3; j++ {
-							if curNodePosition.ParentClusterNodes[i][j].NodeID == updateData.Node.NodeID {
-								curNodePosition.ParentClusterNodes[i][j].NodeID = ""
+							if curNodePosition.ParentClusterNodeIDs[i][j] == updateData.NodeID {
+								curNodePosition.ParentClusterNodeIDs[i][j] = ""
 								found = true
 								break
 							}
@@ -404,8 +404,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					if !found {
 						for i := 0; i < 2; i++ {
 							for j := 0; j < 3; j++ {
-								if curNodePosition.ChildClusterNodes[i][j].NodeID == updateData.Node.NodeID {
-									curNodePosition.ChildClusterNodes[i][j].NodeID = ""
+								if curNodePosition.ChildClusterNodeIDs[i][j] == updateData.NodeID {
+									curNodePosition.ChildClusterNodeIDs[i][j] = ""
 									break
 								}
 							}
@@ -417,14 +417,14 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 
 				if updateData.Position >= 9 {
 					position := updateData.Position - 9
-					curNodeID = curNodePosition.ChildClusterNodes[int(position/3)][position%3].NodeID
-					curNodePosition.ChildClusterNodes[int(position/3)][position%3] = updateData.Node
+					curNodeID = curNodePosition.ChildClusterNodeIDs[int(position/3)][position%3]
+					curNodePosition.ChildClusterNodeIDs[int(position/3)][position%3] = updateData.NodeID
 				} else {
-					curNodeID = curNodePosition.ParentClusterNodes[int(updateData.Position/3)][updateData.Position%3].NodeID
-					curNodePosition.ParentClusterNodes[int(updateData.Position/3)][updateData.Position%3] = updateData.Node
+					curNodeID = curNodePosition.ParentClusterNodeIDs[int(updateData.Position/3)][updateData.Position%3]
+					curNodePosition.ParentClusterNodeIDs[int(updateData.Position/3)][updateData.Position%3] = updateData.NodeID
 				}
 
-				if updateData.Node.NodeID == "" {
+				if updateData.NodeID == "" {
 					updateNodePosition(false, curNodeID)
 				} else {
 					updateNodePosition(false, "")

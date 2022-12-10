@@ -8,24 +8,18 @@ import (
 
 type Node struct {
 	NodeID             string
-	UserID             string
 	NodeChan           chan NodeChanMessage
 	ContainerNodePanel *NodePanel
 	PartnerInt         int
 	Created            time.Time
 }
 
-type BasicNode struct {
-	NodeID string
-	UserID string
-}
-
 type NodePosition struct {
-	Path               []int
-	PartnerInt         int
-	CenterCluster      bool
-	ParentClusterNodes [3][3]BasicNode //connector panels is index 2
-	ChildClusterNodes  [2][3]BasicNode
+	Path                 []int
+	PartnerInt           int
+	CenterCluster        bool
+	ParentClusterNodeIDs [3][3]string //connector panels is index 2
+	ChildClusterNodeIDs  [2][3]string
 }
 
 type NodePanel struct {
@@ -84,28 +78,21 @@ func (nc *NodeCluster) getNodeAmount() int {
 	return amount
 }
 
-func (n *Node) toBasicNode() BasicNode {
-	return BasicNode{
-		NodeID: n.NodeID,
-		UserID: n.UserID,
-	}
-}
-
-func (n *Node) updateSingleNodePosition(position int, basicNode BasicNode) {
+func (n *Node) updateSingleNodePosition(position int, nodeID string) {
 	n.NodeChan <- NodeChanMessage{
 		Op:     2100,
 		Action: SERVER_ACTION,
 		Data: UpdateSingleNodePositionData{
 			Position: position,
-			Node:     basicNode,
+			NodeID:   nodeID,
 		},
 	}
 }
 
 func (n *Node) updateNodePosition() {
 
-	var parent_cluster_node_ids [3][3]BasicNode
-	var child_cluster_node_ids [2][3]BasicNode
+	var parent_cluster_node_ids [3][3]string
+	var child_cluster_node_ids [2][3]string
 
 	for i := 0; i < 3; i++ {
 		// if !n.ContainerNodePanel.ParentCluster.Center && i != 2 && i != n.ContainerNodePanel.getPanelNumber() {
@@ -118,9 +105,9 @@ func (n *Node) updateNodePosition() {
 		for j := 0; j < 3; j++ {
 			node := n.ContainerNodePanel.ParentCluster.Panels[i].Nodes[j]
 			if node != nil {
-				parent_cluster_node_ids[i][j] = node.toBasicNode()
+				parent_cluster_node_ids[i][j] = node.NodeID
 				if node != n {
-					node.updateSingleNodePosition(position, n.toBasicNode())
+					node.updateSingleNodePosition(position, n.NodeID)
 				}
 			}
 		}
@@ -132,8 +119,8 @@ func (n *Node) updateNodePosition() {
 			for j := 0; j < 3; j++ {
 				node := n.ContainerNodePanel.ChildCluster.Panels[i].Nodes[j]
 				if node != nil {
-					child_cluster_node_ids[i][j] = node.toBasicNode()
-					node.updateSingleNodePosition(position, n.toBasicNode())
+					child_cluster_node_ids[i][j] = node.NodeID
+					node.updateSingleNodePosition(position, n.NodeID)
 				}
 			}
 		}
@@ -144,11 +131,11 @@ func (n *Node) updateNodePosition() {
 			Op:     2000,
 			Action: SERVER_ACTION,
 			Data: NodePosition{
-				Path:               n.ContainerNodePanel.Path,
-				PartnerInt:         n.PartnerInt,
-				CenterCluster:      n.ContainerNodePanel.ParentCluster.Center,
-				ParentClusterNodes: parent_cluster_node_ids,
-				ChildClusterNodes:  child_cluster_node_ids,
+				Path:                 n.ContainerNodePanel.Path,
+				PartnerInt:           n.PartnerInt,
+				CenterCluster:        n.ContainerNodePanel.ParentCluster.Center,
+				ParentClusterNodeIDs: parent_cluster_node_ids,
+				ChildClusterNodeIDs:  child_cluster_node_ids,
 			},
 		}
 	}
@@ -228,7 +215,7 @@ func (pool *NodePool) addNewClusterTreeLevel() {
 	pool.ClusterTree = append(ct, new_cluster_level)
 }
 
-func (pool *NodePool) AddNode(node_id string, user_id string, node_chan chan NodeChanMessage) {
+func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
 	ct := pool.ClusterTree
 	var new_node *Node
 
@@ -268,7 +255,6 @@ func (pool *NodePool) AddNode(node_id string, user_id string, node_chan chan Nod
 				if ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index].Nodes[j] == nil {
 					new_node = &Node{
 						NodeID:             node_id,
-						UserID:             user_id,
 						NodeChan:           node_chan,
 						ContainerNodePanel: ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index],
 						PartnerInt:         j,
@@ -284,7 +270,7 @@ func (pool *NodePool) AddNode(node_id string, user_id string, node_chan chan Nod
 
 	if !added {
 		pool.addNewClusterTreeLevel()
-		pool.AddNode(node_id, user_id, node_chan)
+		pool.AddNode(node_id, node_chan)
 	} else {
 		new_node.updateNodePosition()
 		pool.NodeMap[new_node.NodeID] = new_node
@@ -372,7 +358,6 @@ func (pool *NodePool) RemoveNode(node_id string) {
 	}
 
 	n.NodeID = ""
-	n.UserID = ""
 	n.updateNodePosition()
 }
 
