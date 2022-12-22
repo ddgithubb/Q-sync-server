@@ -16,6 +16,8 @@ INTERNAL NODECHAN OP CODES:
         NodeID: string
     }
 
+
+
 WEBSOCKET SERVER OP CODES:
 
 1000 - WS heartbeat
@@ -34,9 +36,6 @@ WEBSOCKET SERVER OP CODES:
 2001 - Connect Node
 
 2002 - Disconnect Node
-    data: {
-        RemoveFromPool: boolean
-    }
 
 2003 - Send Offer
     data: {
@@ -55,6 +54,30 @@ WEBSOCKET SERVER OP CODES:
 2006 - Report Node
     data: {
         ReportCode: int
+    }
+
+2010 - Add Nodes
+    data: []{
+        NodeID: string
+        Path: []int
+        Timestamp: int
+        NodeInfo: {
+            UserID: string
+            DisplayName string
+            DeviceID: string
+            DeviceName: string
+            DeviceType: int
+        }
+    }
+
+2011 - Remove Node
+    data: {
+        NodeID: string
+        Timestamp: int
+        PromotedNodes: []{
+            NodeID: string
+            Path: []int
+        }
     }
 
 WEBSCOKET CLIENT OP CODES:
@@ -94,7 +117,9 @@ WEBSCOKET CLIENT OP CODES:
         ReportCode: int
     }
 
-2010 - 
+2010 - Added User
+
+2011 - Removed User
 
 WEBSOCKET ERROR OP CODES:
 

@@ -66,6 +66,22 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	// 2. Validate that poolID is valid via the pool manager
 	// TODO
+
+	// 3. Keep track of updated users
+
+	// TEMP
+	userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
+	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
+	displayName := ws.Query("displayname")
+	userInfo := &clustertree.NodeInfo{
+		UserID:      userID,
+		DisplayName: displayName,
+		DeviceID:    deviceID,
+		DeviceName:  "TEST_DEVICE",
+		DeviceType:  0,
+	}
+	// TEMP
+
 	nodeID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 
 	closeChan := make(chan struct{})
@@ -73,7 +89,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	go nodeChanRecv(ws, poolID, nodeID, nodeChan, closeChan)
 
-	clustertree.JoinPool(poolID, nodeID, nodeChan)
+	clustertree.JoinPool(poolID, nodeID, userInfo, nodeChan)
 
 	fmt.Println(nodeID, "JOINED MAIN POOL")
 

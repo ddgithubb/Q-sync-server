@@ -10,8 +10,8 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-func opRequiresKey(op int) bool {
-	return op != 2006
+func opNoKeyRequired(op int) bool {
+	return op == 2006
 }
 
 func getThirdPanelNumber(panelA, panelB int) int {
@@ -73,10 +73,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 	}
 
 	sendToNodeInPool := func(targetNodeID string, op int, data interface{}) {
-		go func() {
-			clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, op, data)
-		}()
-		//clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, op, data)
+		go clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, op, data)
 	}
 
 	connectNode := func(targetNodeID string) {
@@ -86,7 +83,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 	disconnectNode := func(targetNodeID string, removeFromPool bool) {
 		delete(nodeStates, targetNodeID)
 		delete(curReports, targetNodeID)
-		sendOp(2002, DisconnectData{RemoveFromPool: removeFromPool}, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
+		sendOp(2002, nil, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
+		// sendOp(2002, DisconnectData{RemoveFromPool: removeFromPool}, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
 	}
 
 	reportNode := func(targetNodeID string, reportCode int, action int) {
@@ -302,7 +300,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					continue
 				}
 			} else {
-				if opRequiresKey(msg.Op) {
+				if !opNoKeyRequired(msg.Op) {
 					continue
 				}
 			}
@@ -385,6 +383,14 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				clientErr = clientNotCompliant(ws)
 			}
 			reportNode(msg.TargetNodeID, reportNodeData.ReportCode, msg.Action)
+		case 2010:
+			if msg.Action == SERVER_ACTION {
+				sendOp(2010, msg.Data, 2010, nodeID, DEFUALT_CLIENT_TIMEOUT)
+			}
+		case 2011:
+			if msg.Action == SERVER_ACTION {
+				sendOp(2011, msg.Data, 2011, nodeID, DEFUALT_CLIENT_TIMEOUT)
+			}
 		case 2100:
 			if msg.Action == SERVER_ACTION {
 				updateData := msg.Data.(clustertree.UpdateSingleNodePositionData)

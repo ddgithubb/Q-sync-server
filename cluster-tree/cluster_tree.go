@@ -8,6 +8,7 @@ import (
 
 type Node struct {
 	NodeID             string
+	NodeInfo           *NodeInfo
 	NodeChan           chan NodeChanMessage
 	ContainerNodePanel *NodePanel
 	PartnerInt         int
@@ -76,6 +77,10 @@ func (nc *NodeCluster) getNodeAmount() int {
 		}
 	}
 	return amount
+}
+
+func (n *Node) getPath() []int {
+	return n.ContainerNodePanel.Path
 }
 
 func (n *Node) updateSingleNodePosition(position int, nodeID string) {
@@ -215,7 +220,7 @@ func (pool *NodePool) addNewClusterTreeLevel() {
 	pool.ClusterTree = append(ct, new_cluster_level)
 }
 
-func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
+func (pool *NodePool) AddNode(node_id string, nodeInfo *NodeInfo, node_chan chan NodeChanMessage) *Node {
 	ct := pool.ClusterTree
 	var new_node *Node
 
@@ -255,6 +260,7 @@ func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
 				if ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index].Nodes[j] == nil {
 					new_node = &Node{
 						NodeID:             node_id,
+						NodeInfo:           nodeInfo,
 						NodeChan:           node_chan,
 						ContainerNodePanel: ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index],
 						PartnerInt:         j,
@@ -270,17 +276,18 @@ func (pool *NodePool) AddNode(node_id string, node_chan chan NodeChanMessage) {
 
 	if !added {
 		pool.addNewClusterTreeLevel()
-		pool.AddNode(node_id, node_chan)
-	} else {
-		new_node.updateNodePosition()
-		pool.NodeMap[new_node.NodeID] = new_node
+		return pool.AddNode(node_id, nodeInfo, node_chan)
 	}
+
+	new_node.updateNodePosition()
+	pool.NodeMap[new_node.NodeID] = new_node
+	return new_node
 }
 
-func (pool *NodePool) RemoveNode(node_id string) {
+func (pool *NodePool) RemoveNode(node_id string) []*Node {
 	n, ok := pool.NodeMap[node_id]
 	if !ok {
-		return
+		return nil
 	}
 
 	promoted_nodes := make([]*Node, 0)
@@ -359,6 +366,7 @@ func (pool *NodePool) RemoveNode(node_id string) {
 
 	n.NodeID = ""
 	n.updateNodePosition()
+	return promoted_nodes
 }
 
 func NewNodePool() *NodePool {

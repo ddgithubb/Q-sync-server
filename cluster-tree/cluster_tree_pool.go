@@ -2,6 +2,7 @@ package clustertree
 
 import (
 	"sync"
+	"time"
 
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -32,7 +33,7 @@ func newConcPoolShards() ConcPoolShards {
 }
 
 // Joins pool based on pool id, creates a pool IF NOT EXIST
-func JoinPool(poolID string, nodeID string, nodeChan chan NodeChanMessage) {
+func JoinPool(poolID string, nodeID string, nodeInfo *NodeInfo, nodeChan chan NodeChanMessage) {
 	var pool *NodePool
 
 	poolShard := ActivePools.GetShard(poolID)
@@ -49,7 +50,28 @@ func JoinPool(poolID string, nodeID string, nodeChan chan NodeChanMessage) {
 	poolShard.Unlock()
 
 	pool.Lock()
-	pool.AddNode(nodeID, nodeChan)
+	newNode := pool.AddNode(nodeID, nodeInfo, nodeChan)
+	initNodesData := make(AddNodesData, 1, len(pool.NodeMap))
+	addNewNodeData := make(AddNodesData, 1)
+	newAddNodeData := newNode.getAddNodeData()
+	addNewNodeData[0] = newAddNodeData
+	initNodesData[0] = newAddNodeData
+	for _, node := range pool.NodeMap {
+		if node.NodeID == nodeID {
+			continue
+		}
+		node.NodeChan <- NodeChanMessage{
+			Op:     2010,
+			Action: SERVER_ACTION,
+			Data:   addNewNodeData,
+		}
+		initNodesData = append(initNodesData, node.getAddNodeData())
+	}
+	newNode.NodeChan <- NodeChanMessage{
+		Op:     2010,
+		Action: SERVER_ACTION,
+		Data:   initNodesData,
+	}
 	pool.Unlock()
 }
 
@@ -67,9 +89,36 @@ func RemoveFromPool(poolID string, nodeID string) {
 		return
 	}
 
+	cleanPool := false
 	pool.Lock()
-	pool.RemoveNode(nodeID)
+	promotedNodes := pool.RemoveNode(nodeID)
+	if len(pool.NodeMap) == 0 {
+		cleanPool = true
+	} else {
+		promotedBasicNodes := make([]*BasicNode, len(promotedNodes))
+		for i := 0; i < len(promotedNodes); i++ {
+			promotedBasicNodes[i] = promotedNodes[i].getBasicNode()
+		}
+		removeNodeData := &RemoveNodeData{
+			NodeID:        nodeID,
+			Timestamp:     time.Now().UnixMilli(),
+			PromotedNodes: promotedBasicNodes,
+		}
+		for _, node := range pool.NodeMap {
+			node.NodeChan <- NodeChanMessage{
+				Op:     2011,
+				Action: SERVER_ACTION,
+				Data:   removeNodeData,
+			}
+		}
+	}
 	pool.Unlock()
+
+	if cleanPool {
+		poolShard.Lock()
+		delete(poolShard.Table, poolID)
+		poolShard.Unlock()
+	}
 }
 
 // Send Data to specific node in pool
