@@ -16,8 +16,6 @@ INTERNAL NODECHAN OP CODES:
         NodeID: string
     }
 
-
-
 WEBSOCKET SERVER OP CODES:
 
 1000 - WS heartbeat

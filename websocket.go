@@ -77,7 +77,7 @@ func WebsocketServer(ws *websocket.Conn) {
 		UserID:      userID,
 		DisplayName: displayName,
 		DeviceID:    deviceID,
-		DeviceName:  "TEST_DEVICE",
+		DeviceName:  displayName + "'s Device",
 		DeviceType:  0,
 	}
 	// TEMP
@@ -157,6 +157,8 @@ func WebsocketServer(ws *websocket.Conn) {
 			d := new(ReportNodeData)
 			jsonData.ToVal(d)
 			data = *d
+		case 2010:
+		case 2011:
 		default:
 			validOp = false
 		}
