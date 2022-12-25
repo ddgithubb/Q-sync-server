@@ -7,7 +7,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 )
 
-const CONCURRENCY = 32
+const CONCURRENCY = 1
 
 var ActivePools ConcPoolShards = newConcPoolShards()
 

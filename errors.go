@@ -43,5 +43,7 @@ func handleWebsocketError(ws *websocket.Conn, code int, errorInfo ...string) {
 	if ws != nil && ws.Conn != nil {
 		ip = ws.RemoteAddr().String()
 	}
-	logger.Println("IP:", ip, "| Code:", code, "| Error info:", errorInfo)
+	if !DISABLE_LOGGING {
+		logger.Println("IP:", ip, "| Code:", code, "| Error info:", errorInfo)
+	}
 }

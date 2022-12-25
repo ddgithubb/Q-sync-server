@@ -11,7 +11,7 @@ import (
 )
 
 func opNoKeyRequired(op int) bool {
-	return op == 2006
+	return op < 2000 || op == 2006
 }
 
 func getThirdPanelNumber(panelA, panelB int) int {
@@ -307,6 +307,8 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 
 		switch msg.Op {
+		case 1000:
+			writeMessage(ws, 1000, nil)
 		case 2000:
 			if msg.Action == SERVER_ACTION {
 				newNodePositionData := msg.Data.(clustertree.NodePosition)
@@ -344,8 +346,6 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 				} else if msg.Action == SERVER_ACTION {
 					sendOp(2003, sdpData, 2004, msg.TargetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
 				}
-			} else {
-				fmt.Println("!!! 2003 NOT ACTIVE", msg.TargetNodeID)
 			}
 		case 2004:
 			sdpData, ok := msg.Data.(SDPData)

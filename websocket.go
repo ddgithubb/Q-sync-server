@@ -91,7 +91,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	clustertree.JoinPool(poolID, nodeID, userInfo, nodeChan)
 
-	fmt.Println(nodeID, "JOINED MAIN POOL")
+	fmt.Println(nodeID, "JOINED POOL", poolID)
 
 	defer func() {
 		clustertree.RemoveFromPool(poolID, nodeID)
@@ -134,7 +134,6 @@ func WebsocketServer(ws *websocket.Conn) {
 
 		switch op {
 		case 1000:
-			writeMessage(ws, 1000, nil)
 		case 2000:
 		case 2001:
 			d := new(NodeStatusData)
@@ -168,14 +167,12 @@ func WebsocketServer(ws *websocket.Conn) {
 			break
 		}
 
-		if op >= 2000 && op < 3000 {
-			nodeChan <- clustertree.NodeChanMessage{
-				Op:           op,
-				Action:       clustertree.CLIENT_ACTION,
-				Key:          jsoniter.Get(b, "Key").ToString(),
-				TargetNodeID: jsoniter.Get(b, "TargetNodeID").ToString(),
-				Data:         data,
-			}
+		nodeChan <- clustertree.NodeChanMessage{
+			Op:           op,
+			Action:       clustertree.CLIENT_ACTION,
+			Key:          jsoniter.Get(b, "Key").ToString(),
+			TargetNodeID: jsoniter.Get(b, "TargetNodeID").ToString(),
+			Data:         data,
 		}
 	}
 }
