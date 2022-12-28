@@ -16,6 +16,7 @@ const (
 	CONNECT_NODE    = 1
 	NO_CHANGE_NODE  = 2
 
+	LAST_REPORT = -2
 	MY_REPORT              = -1
 	DISCONNECT_REPORT      = 0
 	RECONNECT_REPORT       = 1
@@ -23,6 +24,10 @@ const (
 	MUNGED_MESSAGES_REPORT = 3
 	SPAM_REPORT            = 4
 )
+
+type VersionInfo struct {
+	Version string
+}
 
 type AckPendingInfo struct {
 	ExpireTime   time.Time

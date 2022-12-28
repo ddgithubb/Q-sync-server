@@ -1,6 +1,7 @@
 package clustertree
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ func JoinPool(poolID string, nodeID string, nodeInfo *NodeInfo, nodeChan chan No
 
 	pool.Lock()
 	newNode := pool.AddNode(nodeID, nodeInfo, nodeChan)
+	fmt.Println(len(pool.NodeMap), "node in pool", poolID)
 	initNodesData := make(AddNodesData, 1, len(pool.NodeMap))
 	addNewNodeData := make(AddNodesData, 1)
 	newAddNodeData := newNode.getAddNodeData()
@@ -92,6 +94,7 @@ func RemoveFromPool(poolID string, nodeID string) {
 	cleanPool := false
 	pool.Lock()
 	promotedNodes := pool.RemoveNode(nodeID)
+	fmt.Println(len(pool.NodeMap), "node in pool", poolID)
 	if len(pool.NodeMap) == 0 {
 		cleanPool = true
 	} else {

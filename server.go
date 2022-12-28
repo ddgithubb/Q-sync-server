@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
 	// "net/http"
 	// _ "net/http/pprof"
@@ -20,6 +21,9 @@ const (
 	DEFUALT_CLIENT_TIMEOUT   = 5 * time.Second
 	SDP_OFFER_CLIENT_TIMEOUT = 15 * time.Second
 	TIMEOUT_INTERVAL         = 5 * time.Second
+
+	MAX_UNIQUE_REPORTS = 3
+	MAX_REPORTS = 5
 
 	DISABLE_LOGGING = true
 )
@@ -49,6 +53,16 @@ func main() {
 
 	app := fiber.New()
 	defer app.Shutdown()
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+	}))
+
+	app.Get("/ss/version", func(c *fiber.Ctx) error {
+		return c.JSON(VersionInfo{
+			Version: VERSION,
+		})
+	})
 
 	ssGroup := app.Group("/ss/" + VERSION)
 	ssGroup.Use("/connect", InitializeSocket, websocket.New(WebsocketServer))

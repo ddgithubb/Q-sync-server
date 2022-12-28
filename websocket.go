@@ -91,9 +91,10 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	clustertree.JoinPool(poolID, nodeID, userInfo, nodeChan)
 
-	fmt.Println(nodeID, "JOINED POOL", poolID)
+	fmt.Println(nodeID, "+ joining pool", poolID)
 
 	defer func() {
+		fmt.Println(nodeID, "- leaving pool", poolID)
 		clustertree.RemoveFromPool(poolID, nodeID)
 		closeChan <- struct{}{}
 	}()
@@ -117,7 +118,7 @@ func WebsocketServer(ws *websocket.Conn) {
 
 		if mt, b, err = ws.ReadMessage(); err != nil {
 			// i/o timeout is late heartbeat
-			fmt.Println("WS read err", err, "| NodeID", nodeID)
+			//fmt.Println("WS read err", err, "| NodeID", nodeID)
 			break
 		}
 		if mt == websocket.BinaryMessage {

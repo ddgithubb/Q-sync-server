@@ -35,7 +35,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		timeoutTimer chan struct{} = make(chan struct{})
 
 		curReports      map[string]int = make(map[string]int)
-		allReportsCount int
+		curReportsCount int
 
 		curNodePosition clustertree.NodePosition
 
@@ -76,13 +76,18 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		go clustertree.SendToNodeInPool(poolID, nodeID, targetNodeID, op, data)
 	}
 
+	clearReport := func(targetNodeID string) {
+		delete(curReports, targetNodeID)
+		curReportsCount = 0;
+	}
+
 	connectNode := func(targetNodeID string) {
 		sendOp(2001, nil, 2003, targetNodeID, SDP_OFFER_CLIENT_TIMEOUT)
 	}
 
 	disconnectNode := func(targetNodeID string, removeFromPool bool) {
 		delete(nodeStates, targetNodeID)
-		delete(curReports, targetNodeID)
+		clearReport(targetNodeID)
 		sendOp(2002, nil, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
 		// sendOp(2002, DisconnectData{RemoveFromPool: removeFromPool}, 2002, targetNodeID, DEFUALT_CLIENT_TIMEOUT)
 	}
@@ -93,9 +98,19 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			return
 		}
 
-		allReportsCount++
+		curReportsCount++
+
+		if curReportsCount >= MAX_REPORTS {
+			clientErr = clientNotCompliant(ws)
+			sendToNodeInPool(targetNodeID, 2006, ReportNodeData{ReportCode: LAST_REPORT})
+			return
+		}
 
 		_, ok := curReports[targetNodeID]
+
+		if reportCode == LAST_REPORT {
+			return
+		}
 
 		if reportCode == DISCONNECT_REPORT {
 			if ok {
@@ -104,14 +119,14 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 		}
 
 		if action == SERVER_ACTION {
-			if len(curReports) >= 2 {
+			if len(curReports) >= MAX_UNIQUE_REPORTS {
 				l := len(curReports)
 				for _, code := range curReports {
 					if code == -1 {
 						l--
 					}
 				}
-				if l >= 2 {
+				if l >= MAX_UNIQUE_REPORTS {
 					clientErr = clientNotCompliant(ws)
 					return
 				}
@@ -324,7 +339,7 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 			if nodeStates[msg.TargetNodeID] == ACTIVE_STATE {
 				if msg.Action == CLIENT_ACTION {
 					if nodeStatusData.Status == SUCCESSFUL_STATUS {
-						delete(curReports, msg.TargetNodeID)
+						clearReport(msg.TargetNodeID)
 						sendToNodeInPool(msg.TargetNodeID, 2005, nil)
 					} else if nodeStatusData.Status == UNSUCCESSFUL_STATUS {
 						reportNode(msg.TargetNodeID, RECONNECT_REPORT, msg.Action)
@@ -372,14 +387,14 @@ func nodeChanRecv(ws *websocket.Conn, poolID string, nodeID string, nodeChan cha
 					clientErr = clientNotCompliant(ws)
 				}
 				if nodeStatusData.Status == SUCCESSFUL_STATUS {
-					delete(curReports, msg.TargetNodeID)
+					clearReport(msg.TargetNodeID)
 				} else if nodeStatusData.Status == UNSUCCESSFUL_STATUS {
 					reportNode(msg.TargetNodeID, RECONNECT_REPORT, msg.Action)
 				}
 			}
 		case 2006:
 			reportNodeData, ok := msg.Data.(ReportNodeData)
-			if !ok {
+			if !ok || reportNodeData.ReportCode < 0 {
 				clientErr = clientNotCompliant(ws)
 			}
 			reportNode(msg.TargetNodeID, reportNodeData.ReportCode, msg.Action)
