@@ -5,45 +5,44 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-type errorResponse struct {
-	Error       bool
-	Code        int
-	Description string
-	ErrorInfo   []string
-}
+type ERROR_CODE_TYPE = int32
+
+const (
+	ERROR_WEBSOCKET_UPGRADE = 0
+	ERROR_WEBSOCKET_WRITE = 1
+	ERROR_MARSHALLING_PROTOBUF = 2
+	ERROR_UNMARSHALLING_PROTOBUF = 3
+	ERROR_SET_READ_DEADLINE = 4
+	ERROR_INVALID_POOL_ID = 5
+)
 
 var errorCodesDescription = map[int]string{
-
-	// Websocket errors
-	40000: "Websocket upgrade error",
-	40001: "",
-	40002: "",
-	40003: "",
-	40004: "",
-	40005: "Websocket write error",
-	40006: "Error marshalling to JSON",
-	40007: "Error unmarshalling JSON",
-	40008: "Websocket set read deadline error",
-	40009: "Websocket unexpected binary message",
-	40010: "Unrecognzied Op code",
-	40100: "Invalid pool id",
+	0: "Websocket upgrade error",
+	1: "Websocket write error",
+	2: "Error marshalling to protobuf",
+	3: "Error unmarshalling protobuf",
+	4: "Websocket set read deadline error",
+	5: "Invalid pool id",
 }
 
-func handleUpgradeError(c *fiber.Ctx, code int, errorInfo ...string) error {
+type errorResponse struct {
+	Error       bool
+	Description string
+}
+
+func handleUpgradeError(c *fiber.Ctx, errorCode int) error {
 	return c.Status(fiber.StatusBadRequest).JSON(errorResponse{
 		Error:       true,
-		Code:        code,
-		Description: errorCodesDescription[code],
-		ErrorInfo:   errorInfo,
+		Description: errorCodesDescription[errorCode],
 	})
 }
 
-func handleWebsocketError(ws *websocket.Conn, code int, errorInfo ...string) {
+func handleWebsocketError(ws *websocket.Conn, errorCode int, errorInfo ...string) {
 	ip := "not captured"
 	if ws != nil && ws.Conn != nil {
 		ip = ws.RemoteAddr().String()
 	}
 	if !DISABLE_LOGGING {
-		logger.Println("IP:", ip, "| Code:", code, "| Error info:", errorInfo)
+		logger.Println("IP:", ip, "| Code:", errorCode, "| Error info:", errorInfo)
 	}
 }

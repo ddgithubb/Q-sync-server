@@ -13,7 +13,7 @@ func InitializeSocket(c *fiber.Ctx) error {
 		pool_id := c.Query("poolid")
 
 		if pool_id == "" {
-			return handleUpgradeError(c, 40100, pool_id)
+			return handleUpgradeError(c, ERROR_INVALID_POOL_ID)
 		}
 
 		c.Locals("poolid", pool_id)
@@ -21,5 +21,5 @@ func InitializeSocket(c *fiber.Ctx) error {
 		return c.Next()
 	}
 
-	return handleUpgradeError(c, 40000, fiber.ErrUpgradeRequired.Error())
+	return handleUpgradeError(c, ERROR_WEBSOCKET_UPGRADE)
 }

@@ -28,7 +28,7 @@ WEBSOCKET SERVER OP CODES:
         PartnerInt: int
         CenterCluster: bool
         ParentClusterNodeIDs: [3][3]string
-        ChildClusterPartnerNodeIDs: [2][3]string
+        ChildClusterNodeIDs: [2][3]string
     }
 
 2001 - Connect Node
@@ -78,7 +78,7 @@ WEBSOCKET SERVER OP CODES:
         }
     }
 
-WEBSCOKET CLIENT OP CODES:
+WEBSOCKET CLIENT OP CODES:
 
 1000 - WS heartbeat 
 

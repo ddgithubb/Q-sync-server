@@ -28,6 +28,10 @@ const (
 	DISABLE_LOGGING = true
 )
 
+type VersionInfo struct {
+	Version string
+}
+
 var logger *log.Logger
 
 func init() {
