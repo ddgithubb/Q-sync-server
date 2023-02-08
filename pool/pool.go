@@ -88,11 +88,11 @@ func (n *PoolNode) getPath() []int {
 	return n.ContainerNodePanel.Path
 }
 
-func (n *PoolNode) getPathInt32() []int32 {
+func (n *PoolNode) getPathInt32() []uint32 {
 	path := n.getPath()
-	newPath := make([]int32, len(path))
+	newPath := make([]uint32, len(path))
 	for i := 0; i < len(path); i++ {
-		newPath[i] = int32(path[i])
+		newPath[i] = uint32(path[i])
 	}
 	return newPath
 }

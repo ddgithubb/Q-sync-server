@@ -40,7 +40,7 @@ func (node *PoolNode) getAddNodeData() *sstypes.SSMessage_AddNodeData {
 		UserId:    node.UserID,
 		DeviceId:  node.DeviceInfo.DeviceId,
 		Path:      node.getPathInt32(),
-		Timestamp: node.Created.UnixMilli(),
+		Timestamp: uint64(node.Created.UnixMilli()),
 	}
 }
 
@@ -76,7 +76,7 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 
 	addNodeData := addedNode.getAddNodeData()
 
-	initNodes := make([]*sstypes.SSMessage_AddNodeData, 0, len(pool.NodeMap) - 1)
+	initNodes := make([]*sstypes.SSMessage_AddNodeData, 0, len(pool.NodeMap)-1)
 
 	// TEMP
 	addedNode.UserInfo = userInfo
@@ -107,7 +107,7 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 		})
 	}
 	// TEMP
-	
+
 	for _, node := range pool.NodeMap {
 		if node.NodeID == nodeID {
 			continue
@@ -129,8 +129,8 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 		sstypes.SSMessage_INIT_POOL,
 		&sstypes.SSMessage_InitPoolData_{
 			InitPoolData: &sstypes.SSMessage_InitPoolData{
-				MyNode: addNodeData,
-				InitNodes: initNodes,
+				MyNode:      addNodeData,
+				InitNodes:   initNodes,
 				UpdateUsers: updateUsers,
 			},
 		},
@@ -180,7 +180,7 @@ func RemoveFromPool(poolID string, nodeID string) {
 				&sstypes.SSMessage_RemoveNodeData_{
 					RemoveNodeData: &sstypes.SSMessage_RemoveNodeData{
 						NodeId:        nodeID,
-						Timestamp:     time.Now().UnixMilli(),
+						Timestamp:     uint64(time.Now().UnixMilli()),
 						PromotedNodes: promotedBasicNodes,
 					},
 				},

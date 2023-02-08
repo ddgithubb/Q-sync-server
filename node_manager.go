@@ -16,18 +16,18 @@ type nodeState int32
 
 const (
 	inactiveNodeState nodeState = 0
-	activeNodeState nodeState = 1
+	activeNodeState   nodeState = 1
 )
 
 type ackPendingInfo struct {
-	expireTime   time.Time
-	responseOp   sstypes.SSMessage_Op
+	expireTime time.Time
+	responseOp sstypes.SSMessage_Op
 
 	targetNodeID string
 }
 
 func opNoKeyRequiredSSMsg(op sstypes.SSMessage_Op) bool {
-	return op == sstypes.SSMessage_HEARTBEAT || 
+	return op == sstypes.SSMessage_HEARTBEAT ||
 		op == sstypes.SSMessage_REPORT_NODE
 	//return op < 2000 || op == 2006
 }
@@ -44,9 +44,9 @@ func getThirdPanelNumber(panelA, panelB int) int {
 func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan pool.PoolNodeChanMessage, closeChan chan struct{}) {
 
 	var (
-		nodeChanMsg       pool.PoolNodeChanMessage
-		ok        bool = true
-		clientErr error
+		nodeChanMsg pool.PoolNodeChanMessage
+		ok          bool = true
+		clientErr   error
 
 		chanClosing  int32
 		timeoutTimer chan struct{} = make(chan struct{})
@@ -113,7 +113,7 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 
 	clearReport := func(targetNodeID string) {
 		delete(curReports, targetNodeID)
-		curReportsCount = 0;
+		curReportsCount = 0
 	}
 
 	connectNode := func(targetNodeID string) {
@@ -167,7 +167,7 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 				return
 			}
 		}
-		
+
 		if len(curReports) >= MAX_UNIQUE_REPORTS {
 			l := len(curReports)
 			for _, code := range curReports {
@@ -306,9 +306,9 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 			}
 		}
 
-		path := make([]int32, len(curNodePosition.Path))
+		path := make([]uint32, len(curNodePosition.Path))
 		for i := 0; i < len(curNodePosition.Path); i++ {
-			path[i] = int32(curNodePosition.Path[i])
+			path[i] = uint32(curNodePosition.Path[i])
 		}
 		correctedParentClusterNodeIDs := make([]string, 0, 9)
 		for i := 0; i < len(curNodePosition.ParentClusterNodeIDs); i++ {
@@ -324,11 +324,11 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 		}
 		sendOpRequest(sstypes.SSMessage_UPDATE_NODE_POSITION, sstypes.SSMessage_UPDATE_NODE_POSITION, &sstypes.SSMessage_UpdateNodePositionData_{
 			UpdateNodePositionData: &sstypes.SSMessage_UpdateNodePositionData{
-				Path: path,
-				PartnerInt: int32(curNodePosition.PartnerInt),
-				CenterCluster: curNodePosition.CenterCluster,
+				Path:                 path,
+				PartnerInt:           uint32(curNodePosition.PartnerInt),
+				CenterCluster:        curNodePosition.CenterCluster,
 				ParentClusterNodeIds: correctedParentClusterNodeIDs,
-				ChildClusterNodeIds: correctedChildClusterNodeIDs,
+				ChildClusterNodeIds:  correctedChildClusterNodeIDs,
 			},
 		}, DEFUALT_CLIENT_TIMEOUT, nodeID)
 		//sendOp(2000, curNodePosition, 2000, nodeID, DEFUALT_CLIENT_TIMEOUT)
@@ -425,10 +425,10 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 					if successResponseData.SuccessResponseData.Success {
 						clearReport(targetNodeID)
 						sendToNodeInPool(
-							targetNodeID, 
-							pool.PNCMT_SEND_SS_MESSAGE, 
+							targetNodeID,
+							pool.PNCMT_SEND_SS_MESSAGE,
 							sstypes.BuildSSMessage(
-								sstypes.SSMessage_VERIFY_NODE_CONNECTED, 
+								sstypes.SSMessage_VERIFY_NODE_CONNECTED,
 								&sstypes.SSMessage_VerifyNodeConnectedData_{
 									VerifyNodeConnectedData: &sstypes.SSMessage_VerifyNodeConnectedData{
 										NodeId: nodeID,
@@ -449,14 +449,14 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 				if nodeStates[targetNodeID] == activeNodeState {
 					if sdpResponseData.SdpResponseData.Success {
 						sendToNodeInPool(
-							targetNodeID, 
+							targetNodeID,
 							pool.PNCMT_SEND_SS_MESSAGE,
 							sstypes.BuildSSMessage(
 								sstypes.SSMessage_SEND_OFFER,
 								&sstypes.SSMessage_SdpOfferData{
 									SdpOfferData: &sstypes.SSMessage_SDPOfferData{
 										FromNodeId: nodeID,
-										Sdp: sdpResponseData.SdpResponseData.Sdp,
+										Sdp:        sdpResponseData.SdpResponseData.Sdp,
 									},
 								},
 							),
@@ -474,14 +474,14 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 				if nodeStates[targetNodeID] == activeNodeState {
 					if sdpResponseData.SdpResponseData.Success {
 						sendToNodeInPool(
-							targetNodeID, 
+							targetNodeID,
 							pool.PNCMT_SEND_SS_MESSAGE,
 							sstypes.BuildSSMessage(
 								sstypes.SSMessage_ANSWER_OFFER,
 								&sstypes.SSMessage_SdpOfferData{
 									SdpOfferData: &sstypes.SSMessage_SDPOfferData{
 										FromNodeId: nodeID,
-										Sdp: sdpResponseData.SdpResponseData.Sdp,
+										Sdp:        sdpResponseData.SdpResponseData.Sdp,
 									},
 								},
 							),
@@ -590,7 +590,7 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 			// 	updateNodePosition(false, "")
 			// }
 			updateNodePosition(false)
-			
+
 		case pool.PNCMT_NOTIFY_REPORT_NODE:
 
 			notifyReportNodeData := nodeChanMsg.Data.(pool.PNCMNotifyReportNodeData)
