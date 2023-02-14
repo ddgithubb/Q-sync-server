@@ -3,7 +3,7 @@ package pool
 import (
 	"fmt"
 	"sync"
-	"sync-server/sstypes"
+	"sync-server/sspb"
 	"time"
 
 	"github.com/segmentio/fasthash/fnv1a"
@@ -34,25 +34,24 @@ func newConcPoolShards() ConcPoolShards {
 	return shards
 }
 
-func (node *PoolNode) getAddNodeData() *sstypes.SSMessage_AddNodeData {
-	return &sstypes.SSMessage_AddNodeData{
+func (node *PoolNode) getAddNodeData() *sspb.SSMessage_AddNodeData {
+	return &sspb.SSMessage_AddNodeData{
 		NodeId:    node.NodeID,
 		UserId:    node.UserID,
-		DeviceId:  node.DeviceInfo.DeviceId,
 		Path:      node.getPathInt32(),
 		Timestamp: uint64(node.Created.UnixMilli()),
 	}
 }
 
-func (node *PoolNode) getBasicNode() *sstypes.PoolBasicNode {
-	return &sstypes.PoolBasicNode{
+func (node *PoolNode) getBasicNode() *sspb.PoolBasicNode {
+	return &sspb.PoolBasicNode{
 		NodeId: node.NodeID,
 		Path:   node.getPathInt32(),
 	}
 }
 
 // Joins pool based on pool id, creates a pool IF NOT EXIST
-func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeChan chan PoolNodeChanMessage, userInfo *sstypes.PoolUserInfo) { // TEMP userInfo
+func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeChan chan PoolNodeChanMessage, userInfo *sspb.PoolUserInfo) { // TEMP userInfo
 	var pool *Pool
 
 	poolShard := ActivePools.GetShard(poolID)
@@ -76,24 +75,22 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 
 	addNodeData := addedNode.getAddNodeData()
 
-	initNodes := make([]*sstypes.SSMessage_AddNodeData, 0, len(pool.NodeMap)-1)
+	initNodes := make([]*sspb.SSMessage_AddNodeData, 0, len(pool.NodeMap))
 
 	// TEMP
 	addedNode.UserInfo = userInfo
 
-	updateUsers := make([]*sstypes.SSMessage_UpdateUserData, 1, len(pool.NodeMap))
-	updateUsers[0] = &sstypes.SSMessage_UpdateUserData{
-		UserInfo: userInfo,
-	}
+	users := make([]*sspb.PoolUserInfo, 1, len(pool.NodeMap))
+	users[0] = userInfo
 
 	for _, node := range pool.NodeMap {
 		if node.NodeID == nodeID {
 			continue
 		}
-		updateDeviceSSMsg := sstypes.BuildSSMessage(
-			sstypes.SSMessage_UPDATE_USER,
-			&sstypes.SSMessage_UpdateUserData_{
-				UpdateUserData: &sstypes.SSMessage_UpdateUserData{
+		updateDeviceSSMsg := sspb.BuildSSMessage(
+			sspb.SSMessage_UPDATE_USER,
+			&sspb.SSMessage_UpdateUserData_{
+				UpdateUserData: &sspb.SSMessage_UpdateUserData{
 					UserInfo: userInfo,
 				},
 			},
@@ -102,36 +99,35 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 			Type: PNCMT_SEND_SS_MESSAGE,
 			Data: updateDeviceSSMsg,
 		}
-		updateUsers = append(updateUsers, &sstypes.SSMessage_UpdateUserData{
-			UserInfo: node.UserInfo,
-		})
+		users = append(users, node.UserInfo)
 	}
 	// TEMP
 
 	for _, node := range pool.NodeMap {
-		if node.NodeID == nodeID {
-			continue
-		}
-		addNodeSSMsg := sstypes.BuildSSMessage(
-			sstypes.SSMessage_ADD_NODE,
-			&sstypes.SSMessage_AddNodeData_{
+		addNodeSSMsg := sspb.BuildSSMessage(
+			sspb.SSMessage_ADD_NODE,
+			&sspb.SSMessage_AddNodeData_{
 				AddNodeData: addNodeData,
 			},
 		)
-		node.NodeChan <- PoolNodeChanMessage{
-			Type: PNCMT_SEND_SS_MESSAGE,
-			Data: addNodeSSMsg,
-		}
 		initNodes = append(initNodes, node.getAddNodeData())
+
+		if node.NodeID != nodeID {
+			node.NodeChan <- PoolNodeChanMessage{
+				Type: PNCMT_SEND_SS_MESSAGE,
+				Data: addNodeSSMsg,
+			}
+		}
 	}
 
-	initPoolSSMsg := sstypes.BuildSSMessage(
-		sstypes.SSMessage_INIT_POOL,
-		&sstypes.SSMessage_InitPoolData_{
-			InitPoolData: &sstypes.SSMessage_InitPoolData{
-				MyNode:      addNodeData,
-				InitNodes:   initNodes,
-				UpdateUsers: updateUsers,
+	initPoolSSMsg := sspb.BuildSSMessage(
+		sspb.SSMessage_INIT_POOL,
+		&sspb.SSMessage_InitPoolData_{
+			InitPoolData: &sspb.SSMessage_InitPoolData{
+				InitNodes: initNodes,
+				PoolInfo: &sspb.PoolInfo{
+					Users: users,
+				},
 			},
 		},
 	)
@@ -169,16 +165,16 @@ func RemoveFromPool(poolID string, nodeID string) {
 	if len(pool.NodeMap) == 0 {
 		cleanPool = true
 	} else {
-		promotedBasicNodes := make([]*sstypes.PoolBasicNode, len(promotedNodes))
+		promotedBasicNodes := make([]*sspb.PoolBasicNode, len(promotedNodes))
 		for i := 0; i < len(promotedNodes); i++ {
 			promotedBasicNodes[i] = promotedNodes[i].getBasicNode()
 		}
 
 		for _, node := range pool.NodeMap {
-			removeNodeSSMsg := sstypes.BuildSSMessage(
-				sstypes.SSMessage_REMOVE_NODE,
-				&sstypes.SSMessage_RemoveNodeData_{
-					RemoveNodeData: &sstypes.SSMessage_RemoveNodeData{
+			removeNodeSSMsg := sspb.BuildSSMessage(
+				sspb.SSMessage_REMOVE_NODE,
+				&sspb.SSMessage_RemoveNodeData_{
+					RemoveNodeData: &sspb.SSMessage_RemoveNodeData{
 						NodeId:        nodeID,
 						Timestamp:     uint64(time.Now().UnixMilli()),
 						PromotedNodes: promotedBasicNodes,
@@ -194,10 +190,10 @@ func RemoveFromPool(poolID string, nodeID string) {
 		// TEMP
 
 		for _, node := range pool.NodeMap {
-			removeDeviceSSMsg := sstypes.BuildSSMessage(
-				sstypes.SSMessage_REMOVE_USER,
-				&sstypes.SSMessage_RemoveUserData_{
-					RemoveUserData: &sstypes.SSMessage_RemoveUserData{
+			removeDeviceSSMsg := sspb.BuildSSMessage(
+				sspb.SSMessage_REMOVE_USER,
+				&sspb.SSMessage_RemoveUserData_{
+					RemoveUserData: &sspb.SSMessage_RemoveUserData{
 						UserId: removed_node.UserID,
 					},
 				},

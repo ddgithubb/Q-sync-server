@@ -1,14 +1,14 @@
 package pool
 
-import "sync-server/sstypes"
+import "sync-server/sspb"
 
 type PoolNodeChanReportCode = int32 // ANY SERVER REPORT CODE MUST BE NEGATIVE
 
 const (
-	REPORT_CODE_FINAL PoolNodeChanReportCode     = -1
+	REPORT_CODE_FINAL          PoolNodeChanReportCode = -1
 	REPORT_CODE_NOT_CONNECTING PoolNodeChanReportCode = -2
 
-	REPORT_CODE_DISCONNECT PoolNodeChanReportCode = PoolNodeChanReportCode(sstypes.SSMessage_DISCONNECT_REPORT)
+	REPORT_CODE_DISCONNECT PoolNodeChanReportCode = PoolNodeChanReportCode(sspb.SSMessage_DISCONNECT_REPORT)
 )
 
 func ReportCodeIsFromClient(reportCode PoolNodeChanReportCode) bool {
@@ -16,7 +16,7 @@ func ReportCodeIsFromClient(reportCode PoolNodeChanReportCode) bool {
 }
 
 func ReportCodeRequiresReconnect(reportCode PoolNodeChanReportCode) bool {
-	return reportCode == REPORT_CODE_NOT_CONNECTING || 
+	return reportCode == REPORT_CODE_NOT_CONNECTING ||
 		reportCode == REPORT_CODE_DISCONNECT
 }
 

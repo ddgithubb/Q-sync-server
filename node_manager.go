@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync-server/pool"
-	"sync-server/sstypes"
+	"sync-server/sspb"
 	"sync/atomic"
 	"time"
 
@@ -21,14 +21,14 @@ const (
 
 type ackPendingInfo struct {
 	expireTime time.Time
-	responseOp sstypes.SSMessage_Op
+	responseOp sspb.SSMessage_Op
 
 	targetNodeID string
 }
 
-func opNoKeyRequiredSSMsg(op sstypes.SSMessage_Op) bool {
-	return op == sstypes.SSMessage_HEARTBEAT ||
-		op == sstypes.SSMessage_REPORT_NODE
+func opNoKeyRequiredSSMsg(op sspb.SSMessage_Op) bool {
+	return op == sspb.SSMessage_HEARTBEAT ||
+		op == sspb.SSMessage_REPORT_NODE
 	//return op < 2000 || op == 2006
 }
 
@@ -77,12 +77,12 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 	}()
 
 	clientNotCompliant := func() {
-		writeSSMessage(ws, sstypes.BuildSSMessage(sstypes.SSMessage_CLOSE, nil))
+		writeSSMessage(ws, sspb.BuildSSMessage(sspb.SSMessage_CLOSE, nil))
 		safelyCloseWS(ws)
 		clientErr = errors.New("client not compliant")
 	}
 
-	createAckKey := func(responseOp sstypes.SSMessage_Op, timeout time.Duration, targetNodeID string) string {
+	createAckKey := func(responseOp sspb.SSMessage_Op, timeout time.Duration, targetNodeID string) string {
 		key, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 5)
 		ackPending[key] = &ackPendingInfo{
 			expireTime:   time.Now().Add(timeout),
@@ -92,14 +92,14 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 		return key
 	}
 
-	sendOpRequest := func(op, responseOp sstypes.SSMessage_Op, data sstypes.SSMessageData, timeout time.Duration, targetNodeID string) {
-		clientErr = writeSSMessage(ws, sstypes.BuildSSMessageWithKey(op, createAckKey(responseOp, timeout, targetNodeID), data))
+	sendOpRequest := func(op, responseOp sspb.SSMessage_Op, data sspb.SSMessageData, timeout time.Duration, targetNodeID string) {
+		clientErr = writeSSMessage(ws, sspb.BuildSSMessageWithKey(op, createAckKey(responseOp, timeout, targetNodeID), data))
 		if clientErr != nil {
 			return
 		}
 	}
 
-	sendServerSSMsgRequest := func(ssMsg *sstypes.SSMessage, responseOp sstypes.SSMessage_Op, timeout time.Duration, targetNodeID string) {
+	sendServerSSMsgRequest := func(ssMsg *sspb.SSMessage, responseOp sspb.SSMessage_Op, timeout time.Duration, targetNodeID string) {
 		ssMsg.Key = createAckKey(responseOp, timeout, targetNodeID)
 		clientErr = writeSSMessage(ws, ssMsg)
 		if clientErr != nil {
@@ -117,8 +117,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 	}
 
 	connectNode := func(targetNodeID string) {
-		sendOpRequest(sstypes.SSMessage_CONNECT_NODE, sstypes.SSMessage_SEND_OFFER, &sstypes.SSMessage_ConnectNodeData_{
-			ConnectNodeData: &sstypes.SSMessage_ConnectNodeData{
+		sendOpRequest(sspb.SSMessage_CONNECT_NODE, sspb.SSMessage_SEND_OFFER, &sspb.SSMessage_ConnectNodeData_{
+			ConnectNodeData: &sspb.SSMessage_ConnectNodeData{
 				NodeId: targetNodeID,
 			},
 		}, SDP_OFFER_CLIENT_TIMEOUT, targetNodeID)
@@ -127,8 +127,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 	disconnectNode := func(targetNodeID string) {
 		delete(nodeStates, targetNodeID)
 		clearReport(targetNodeID)
-		sendOpRequest(sstypes.SSMessage_DISCONNECT_NODE, sstypes.SSMessage_DISCONNECT_NODE, &sstypes.SSMessage_DisconnectNodeData_{
-			DisconnectNodeData: &sstypes.SSMessage_DisconnectNodeData{
+		sendOpRequest(sspb.SSMessage_DISCONNECT_NODE, sspb.SSMessage_DISCONNECT_NODE, &sspb.SSMessage_DisconnectNodeData_{
+			DisconnectNodeData: &sspb.SSMessage_DisconnectNodeData{
 				NodeId: targetNodeID,
 			},
 		}, DEFUALT_CLIENT_TIMEOUT, targetNodeID)
@@ -322,8 +322,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 				correctedChildClusterNodeIDs = append(correctedChildClusterNodeIDs, curNodePosition.ChildClusterNodeIDs[i][j])
 			}
 		}
-		sendOpRequest(sstypes.SSMessage_UPDATE_NODE_POSITION, sstypes.SSMessage_UPDATE_NODE_POSITION, &sstypes.SSMessage_UpdateNodePositionData_{
-			UpdateNodePositionData: &sstypes.SSMessage_UpdateNodePositionData{
+		sendOpRequest(sspb.SSMessage_UPDATE_NODE_POSITION, sspb.SSMessage_UPDATE_NODE_POSITION, &sspb.SSMessage_UpdateNodePositionData_{
+			UpdateNodePositionData: &sspb.SSMessage_UpdateNodePositionData{
 				Path:                 path,
 				PartnerInt:           uint32(curNodePosition.PartnerInt),
 				CenterCluster:        curNodePosition.CenterCluster,
@@ -413,10 +413,10 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 			}
 
 			switch ssMsg.Op {
-			case sstypes.SSMessage_HEARTBEAT:
-				writeSSMessage(ws, sstypes.BuildSSMessage(sstypes.SSMessage_HEARTBEAT, nil))
-			case sstypes.SSMessage_CONNECT_NODE:
-				successResponseData, ok := ssMsg.Data.(*sstypes.SSMessage_SuccessResponseData_)
+			case sspb.SSMessage_HEARTBEAT:
+				writeSSMessage(ws, sspb.BuildSSMessage(sspb.SSMessage_HEARTBEAT, nil))
+			case sspb.SSMessage_CONNECT_NODE:
+				successResponseData, ok := ssMsg.Data.(*sspb.SSMessage_SuccessResponseData_)
 				if !ok {
 					clientNotCompliant()
 					continue
@@ -427,10 +427,10 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						sendToNodeInPool(
 							targetNodeID,
 							pool.PNCMT_SEND_SS_MESSAGE,
-							sstypes.BuildSSMessage(
-								sstypes.SSMessage_VERIFY_NODE_CONNECTED,
-								&sstypes.SSMessage_VerifyNodeConnectedData_{
-									VerifyNodeConnectedData: &sstypes.SSMessage_VerifyNodeConnectedData{
+							sspb.BuildSSMessage(
+								sspb.SSMessage_VERIFY_NODE_CONNECTED,
+								&sspb.SSMessage_VerifyNodeConnectedData_{
+									VerifyNodeConnectedData: &sspb.SSMessage_VerifyNodeConnectedData{
 										NodeId: nodeID,
 									},
 								},
@@ -440,8 +440,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						clientReportNode(targetNodeID, pool.REPORT_CODE_NOT_CONNECTING)
 					}
 				}
-			case sstypes.SSMessage_SEND_OFFER:
-				sdpResponseData, ok := ssMsg.Data.(*sstypes.SSMessage_SdpResponseData)
+			case sspb.SSMessage_SEND_OFFER:
+				sdpResponseData, ok := ssMsg.Data.(*sspb.SSMessage_SdpResponseData)
 				if !ok {
 					clientNotCompliant()
 					continue
@@ -451,10 +451,10 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						sendToNodeInPool(
 							targetNodeID,
 							pool.PNCMT_SEND_SS_MESSAGE,
-							sstypes.BuildSSMessage(
-								sstypes.SSMessage_SEND_OFFER,
-								&sstypes.SSMessage_SdpOfferData{
-									SdpOfferData: &sstypes.SSMessage_SDPOfferData{
+							sspb.BuildSSMessage(
+								sspb.SSMessage_SEND_OFFER,
+								&sspb.SSMessage_SdpOfferData{
+									SdpOfferData: &sspb.SSMessage_SDPOfferData{
 										FromNodeId: nodeID,
 										Sdp:        sdpResponseData.SdpResponseData.Sdp,
 									},
@@ -465,8 +465,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						clientNotCompliant()
 					}
 				}
-			case sstypes.SSMessage_ANSWER_OFFER:
-				sdpResponseData, ok := ssMsg.Data.(*sstypes.SSMessage_SdpResponseData)
+			case sspb.SSMessage_ANSWER_OFFER:
+				sdpResponseData, ok := ssMsg.Data.(*sspb.SSMessage_SdpResponseData)
 				if !ok {
 					clientNotCompliant()
 					continue
@@ -476,10 +476,10 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						sendToNodeInPool(
 							targetNodeID,
 							pool.PNCMT_SEND_SS_MESSAGE,
-							sstypes.BuildSSMessage(
-								sstypes.SSMessage_ANSWER_OFFER,
-								&sstypes.SSMessage_SdpOfferData{
-									SdpOfferData: &sstypes.SSMessage_SDPOfferData{
+							sspb.BuildSSMessage(
+								sspb.SSMessage_ANSWER_OFFER,
+								&sspb.SSMessage_SdpOfferData{
+									SdpOfferData: &sspb.SSMessage_SDPOfferData{
 										FromNodeId: nodeID,
 										Sdp:        sdpResponseData.SdpResponseData.Sdp,
 									},
@@ -490,8 +490,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						clientNotCompliant()
 					}
 				}
-			case sstypes.SSMessage_VERIFY_NODE_CONNECTED:
-				successResponseData, ok := ssMsg.Data.(*sstypes.SSMessage_SuccessResponseData_)
+			case sspb.SSMessage_VERIFY_NODE_CONNECTED:
+				successResponseData, ok := ssMsg.Data.(*sspb.SSMessage_SuccessResponseData_)
 				if !ok {
 					clientNotCompliant()
 					continue
@@ -503,8 +503,8 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 						clientReportNode(targetNodeID, pool.REPORT_CODE_NOT_CONNECTING)
 					}
 				}
-			case sstypes.SSMessage_REPORT_NODE:
-				reportNodeData, ok := ssMsg.Data.(*sstypes.SSMessage_ReportNodeData_)
+			case sspb.SSMessage_REPORT_NODE:
+				reportNodeData, ok := ssMsg.Data.(*sspb.SSMessage_ReportNodeData_)
 				if !ok {
 					clientNotCompliant()
 					continue
@@ -522,20 +522,20 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 			ssMsg := nodeChanMsg.Data.(pool.PNCMSendSSMessageData)
 
 			switch ssMsg.Op {
-			case sstypes.SSMessage_SEND_OFFER:
-				fromNodeID := ssMsg.Data.(*sstypes.SSMessage_SdpOfferData).SdpOfferData.FromNodeId
+			case sspb.SSMessage_SEND_OFFER:
+				fromNodeID := ssMsg.Data.(*sspb.SSMessage_SdpOfferData).SdpOfferData.FromNodeId
 				if nodeStates[fromNodeID] == activeNodeState {
-					sendServerSSMsgRequest(ssMsg, sstypes.SSMessage_ANSWER_OFFER, SDP_OFFER_CLIENT_TIMEOUT, fromNodeID)
+					sendServerSSMsgRequest(ssMsg, sspb.SSMessage_ANSWER_OFFER, SDP_OFFER_CLIENT_TIMEOUT, fromNodeID)
 				}
-			case sstypes.SSMessage_ANSWER_OFFER:
-				fromNodeID := ssMsg.Data.(*sstypes.SSMessage_SdpOfferData).SdpOfferData.FromNodeId
+			case sspb.SSMessage_ANSWER_OFFER:
+				fromNodeID := ssMsg.Data.(*sspb.SSMessage_SdpOfferData).SdpOfferData.FromNodeId
 				if nodeStates[fromNodeID] == activeNodeState {
-					sendServerSSMsgRequest(ssMsg, sstypes.SSMessage_CONNECT_NODE, SDP_OFFER_CLIENT_TIMEOUT, fromNodeID)
+					sendServerSSMsgRequest(ssMsg, sspb.SSMessage_CONNECT_NODE, SDP_OFFER_CLIENT_TIMEOUT, fromNodeID)
 				}
-			case sstypes.SSMessage_VERIFY_NODE_CONNECTED:
-				nodeID := ssMsg.Data.(*sstypes.SSMessage_VerifyNodeConnectedData_).VerifyNodeConnectedData.NodeId
+			case sspb.SSMessage_VERIFY_NODE_CONNECTED:
+				nodeID := ssMsg.Data.(*sspb.SSMessage_VerifyNodeConnectedData_).VerifyNodeConnectedData.NodeId
 				if nodeStates[nodeID] == activeNodeState {
-					sendServerSSMsgRequest(ssMsg, sstypes.SSMessage_VERIFY_NODE_CONNECTED, DEFUALT_CLIENT_TIMEOUT, nodeID)
+					sendServerSSMsgRequest(ssMsg, sspb.SSMessage_VERIFY_NODE_CONNECTED, DEFUALT_CLIENT_TIMEOUT, nodeID)
 				}
 			default:
 				sendServerSSMsgRequest(ssMsg, ssMsg.Op, DEFUALT_CLIENT_TIMEOUT, nodeID)

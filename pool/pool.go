@@ -1,19 +1,18 @@
 package pool
 
 import (
-	"math"
 	"sync"
-	"sync-server/sstypes"
+	"sync-server/sspb"
 	"time"
 )
 
-type PoolDeviceInfo = sstypes.PoolDeviceInfo
+type PoolDeviceInfo = sspb.PoolDeviceInfo
 
 type PoolNode struct {
 	NodeID             string
 	UserID             string
 	DeviceInfo         *PoolDeviceInfo
-	UserInfo           *sstypes.PoolUserInfo // TEMP
+	UserInfo           *sspb.PoolUserInfo // TEMP
 	NodeChan           chan PoolNodeChanMessage
 	ContainerNodePanel *PoolNodePanel
 	PartnerInt         int
@@ -50,13 +49,13 @@ func (np *PoolNodePanel) getPanelNumber() int {
 	return np.Path[len(np.Path)-1]
 }
 
-func (np *PoolNodePanel) getPanelLevel() int {
-	return len(np.Path) - 1
-}
+// func (np *PoolNodePanel) getPanelLevel() int {
+// 	return len(np.Path) - 1
+// }
 
-func (np *PoolNodePanel) getOpposingPanel() *PoolNodePanel {
-	return np.ParentCluster.Panels[int(math.Abs(float64(np.getPanelNumber()-1)))]
-}
+// func (np *PoolNodePanel) getOpposingPanel() *PoolNodePanel {
+// 	return np.ParentCluster.Panels[int(math.Abs(float64(np.getPanelNumber()-1)))]
+// }
 
 func (np *PoolNodePanel) getNodeAmount() int {
 	amount := 0

@@ -1,4 +1,4 @@
-package sstypes
+package sspb
 
 func BuildSSMessage(op SSMessage_Op, data SSMessageData) *SSMessage {
 	return &SSMessage{

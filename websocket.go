@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync-server/pool"
-	"sync-server/sstypes"
+	"sync-server/sspb"
 	"time"
 
 	"github.com/aidarkhanov/nanoid/v2"
@@ -19,7 +19,7 @@ func safelyCloseWS(ws *websocket.Conn) {
 	}
 }
 
-func writeSSMessage(ws *websocket.Conn, ssMsg *sstypes.SSMessage) error {
+func writeSSMessage(ws *websocket.Conn, ssMsg *sspb.SSMessage) error {
 
 	if ws == nil || ws.Conn == nil {
 		return errors.New("conn closed")
@@ -60,14 +60,13 @@ func WebsocketServer(ws *websocket.Conn) {
 	userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 	displayName := ws.Query("displayname")
-	userInfo := &sstypes.PoolUserInfo{
-		UserId:      userID,
-		DisplayName: displayName,
-		Devices: []*sstypes.PoolDeviceInfo{
+	userInfo := &sspb.PoolUserInfo{
+		UserId: userID,
+		Devices: []*sspb.PoolDeviceInfo{
 			{
-				DeviceId:    deviceID,
-				DeviceName:  displayName + "'s Device",
-				DeviceType:  sstypes.DeviceType_BROWSER,
+				DeviceId:   deviceID,
+				DeviceName: displayName,
+				DeviceType: sspb.DeviceType_DESKTOP,
 			},
 		},
 	}
@@ -106,12 +105,12 @@ func WebsocketServer(ws *websocket.Conn) {
 			// 1005 is client closed
 			// len(b) == 0 to detect ws.Close() since it doesn't automatically do it
 			// So either i/o timeout or len(b) == 0 will eventually close it
-			
+
 			// fmt.Println("WS read err", err, "| NodeID", nodeID)
 			break
 		}
 
-		ssm := new(sstypes.SSMessage)
+		ssm := new(sspb.SSMessage)
 		if err := proto.Unmarshal(b, ssm); err != nil {
 			handleWebsocketError(ws, ERROR_UNMARSHALLING_PROTOBUF, err.Error())
 		}
