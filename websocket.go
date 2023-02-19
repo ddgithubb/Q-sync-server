@@ -61,7 +61,8 @@ func WebsocketServer(ws *websocket.Conn) {
 	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
 	displayName := ws.Query("displayname")
 	userInfo := &sspb.PoolUserInfo{
-		UserId: userID,
+		UserId:      userID,
+		DisplayName: displayName,
 		Devices: []*sspb.PoolDeviceInfo{
 			{
 				DeviceId:   deviceID,

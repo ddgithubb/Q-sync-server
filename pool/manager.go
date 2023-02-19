@@ -126,7 +126,9 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 			InitPoolData: &sspb.SSMessage_InitPoolData{
 				InitNodes: initNodes,
 				PoolInfo: &sspb.PoolInfo{
-					Users: users,
+					PoolId:   poolID,
+					PoolName: "TEST_POOL",
+					Users:    users,
 				},
 			},
 		},
