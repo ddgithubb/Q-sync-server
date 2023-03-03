@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"sync-server/sspb"
-	"time"
 
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -36,10 +35,9 @@ func newConcPoolShards() ConcPoolShards {
 
 func (node *PoolNode) getAddNodeData() *sspb.SSMessage_AddNodeData {
 	return &sspb.SSMessage_AddNodeData{
-		NodeId:    node.NodeID,
-		UserId:    node.UserID,
-		Path:      node.getPathInt32(),
-		Timestamp: uint64(node.Created.UnixMilli()),
+		NodeId: node.NodeID,
+		UserId: node.UserID,
+		Path:   node.getPathInt32(),
 	}
 }
 
@@ -88,9 +86,9 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 			continue
 		}
 		updateDeviceSSMsg := sspb.BuildSSMessage(
-			sspb.SSMessage_UPDATE_USER,
-			&sspb.SSMessage_UpdateUserData_{
-				UpdateUserData: &sspb.SSMessage_UpdateUserData{
+			sspb.SSMessage_ADD_USER,
+			&sspb.SSMessage_AddUserData_{
+				AddUserData: &sspb.SSMessage_AddUserData{
 					UserInfo: userInfo,
 				},
 			},
@@ -178,7 +176,6 @@ func RemoveFromPool(poolID string, nodeID string) {
 				&sspb.SSMessage_RemoveNodeData_{
 					RemoveNodeData: &sspb.SSMessage_RemoveNodeData{
 						NodeId:        nodeID,
-						Timestamp:     uint64(time.Now().UnixMilli()),
 						PromotedNodes: promotedBasicNodes,
 					},
 				},

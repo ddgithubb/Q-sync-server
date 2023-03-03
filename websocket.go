@@ -57,8 +57,8 @@ func WebsocketServer(ws *websocket.Conn) {
 	// 3. Keep track of updated users
 
 	// TEMP
-	userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
-	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
+	userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
+	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
 	displayName := ws.Query("displayname")
 	userInfo := &sspb.PoolUserInfo{
 		UserId:      userID,
@@ -73,7 +73,7 @@ func WebsocketServer(ws *websocket.Conn) {
 	}
 	// TEMP
 
-	nodeID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 10)
+	nodeID := deviceID
 
 	closeChan := make(chan struct{})
 	nodeChan := make(chan pool.PoolNodeChanMessage) // Should be blocking for certain synchornization

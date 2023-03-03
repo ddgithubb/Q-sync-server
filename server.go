@@ -14,7 +14,9 @@ import (
 
 const (
 	VERSION = "v1"
-	PORT = ":80"
+	PORT    = ":80"
+
+	NANOID_LENGTH = 21
 
 	HEARTBEAT_INTERVAL       = 30 * time.Second
 	HEARTBEAT_CLIENT_TIMEOUT = 10 * time.Second
@@ -23,7 +25,7 @@ const (
 	TIMEOUT_INTERVAL         = 5 * time.Second
 
 	MAX_UNIQUE_REPORTS = 3
-	MAX_REPORTS = 5
+	MAX_REPORTS        = 5
 
 	DISABLE_LOGGING = true
 )
