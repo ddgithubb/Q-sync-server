@@ -11,6 +11,7 @@ import (
 var webauthnConfig *webauthn.Config = &webauthn.Config{
 	RPDisplayName: "PoolNet",
 	RPID:          "poolnet.com",
+	RPOrigins:     []string{"*"},
 	AuthenticatorSelection: protocol.AuthenticatorSelection{
 		RequireResidentKey: protocol.ResidentKeyNotRequired(),
 		ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,

@@ -79,7 +79,7 @@ func WebsocketServer(ws *websocket.Conn) {
 	closeChan := make(chan struct{})
 	nodeChan := make(chan pool.PoolNodeChanMessage) // Should be blocking for certain synchornization
 
-	go nodeManager(ws, poolID, nodeID, nodeChan, closeChan)
+	go StartNodeManager(ws, poolID, nodeID, nodeChan, closeChan)
 
 	pool.JoinPool(poolID, nodeID, userID, userInfo.Devices[0], nodeChan, userInfo)
 
