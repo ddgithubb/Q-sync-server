@@ -8,12 +8,12 @@ import (
 type ERROR_CODE_TYPE = int32
 
 const (
-	ERROR_WEBSOCKET_UPGRADE = 0
-	ERROR_WEBSOCKET_WRITE = 1
-	ERROR_MARSHALLING_PROTOBUF = 2
+	ERROR_WEBSOCKET_UPGRADE      = 0
+	ERROR_WEBSOCKET_WRITE        = 1
+	ERROR_MARSHALLING_PROTOBUF   = 2
 	ERROR_UNMARSHALLING_PROTOBUF = 3
-	ERROR_SET_READ_DEADLINE = 4
-	ERROR_INVALID_POOL_ID = 5
+	ERROR_SET_READ_DEADLINE      = 4
+	ERROR_INVALID_POOL_ID        = 5
 )
 
 var errorCodesDescription = map[int]string{
@@ -25,13 +25,13 @@ var errorCodesDescription = map[int]string{
 	5: "Invalid pool id",
 }
 
-type errorResponse struct {
+type ErrorResponse struct {
 	Error       bool
 	Description string
 }
 
 func handleUpgradeError(c *fiber.Ctx, errorCode int) error {
-	return c.Status(fiber.StatusBadRequest).JSON(errorResponse{
+	return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
 		Error:       true,
 		Description: errorCodesDescription[errorCode],
 	})

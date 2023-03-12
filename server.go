@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+	"sync-server/auth"
+	"sync-server/store"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,8 +17,6 @@ import (
 const (
 	VERSION = "v1"
 	PORT    = ":80"
-
-	NANOID_LENGTH = 21
 
 	HEARTBEAT_INTERVAL       = 30 * time.Second
 	HEARTBEAT_CLIENT_TIMEOUT = 10 * time.Second
@@ -57,12 +57,16 @@ func main() {
 	// 	log.Println(http.ListenAndServe("localhost:6060", nil))
 	// }()
 
+	defer cleanUp()
+
 	app := fiber.New()
 	defer app.Shutdown()
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 	}))
+
+	auth.AttatchAuthRoutes(app)
 
 	app.Get("/ss/version", func(c *fiber.Ctx) error {
 		return c.JSON(VersionInfo{
@@ -74,5 +78,8 @@ func main() {
 	ssGroup.Use("/connect", InitializeSocket, websocket.New(WebsocketServer))
 
 	log.Fatal(app.Listen(PORT))
+}
 
+func cleanUp() {
+	store.CloseDB()
 }

@@ -2,36 +2,12 @@ package pool
 
 import (
 	"fmt"
-	"sync"
 	"sync-server/sspb"
 
-	"github.com/segmentio/fasthash/fnv1a"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
-const CONCURRENCY = 1
-
-var ActivePools ConcPoolShards = newConcPoolShards()
-
-type ConcPoolShard struct {
-	Table map[string]*Pool
-	sync.RWMutex
-}
-
-type ConcPoolShards []*ConcPoolShard
-
-func (cps ConcPoolShards) GetShard(poolID string) *ConcPoolShard {
-	return cps[fnv1a.HashString32(poolID)%CONCURRENCY]
-}
-
-func newConcPoolShards() ConcPoolShards {
-	shards := make([]*ConcPoolShard, CONCURRENCY)
-
-	for i := 0; uint32(i) < CONCURRENCY; i++ {
-		shards[i] = &ConcPoolShard{Table: make(map[string]*Pool)}
-	}
-
-	return shards
-}
+var ActivePools cmap.ConcurrentMap[string, *Pool] = cmap.New[*Pool]()
 
 func (node *PoolNode) getAddNodeData() *sspb.SSMessage_AddNodeData {
 	return &sspb.SSMessage_AddNodeData{
@@ -50,20 +26,12 @@ func (node *PoolNode) getBasicNode() *sspb.PoolBasicNode {
 
 // Joins pool based on pool id, creates a pool IF NOT EXIST
 func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeChan chan PoolNodeChanMessage, userInfo *sspb.PoolUserInfo) { // TEMP userInfo
-	var pool *Pool
-
-	poolShard := ActivePools.GetShard(poolID)
-
-	poolShard.Lock()
-
-	pool, ok := poolShard.Table[poolID]
-
-	if !ok {
-		pool = NewNodePool()
-		poolShard.Table[poolID] = pool
-	}
-
-	poolShard.Unlock()
+	pool := ActivePools.Upsert(poolID, nil, func(exist bool, valueInMap, newValue *Pool) *Pool {
+		if !exist {
+			return NewNodePool()
+		}
+		return valueInMap
+	})
 
 	pool.Lock()
 
@@ -142,13 +110,7 @@ func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeCha
 
 // Removes node from pool and does the necessary position updates
 func RemoveFromPool(poolID string, nodeID string) {
-	poolShard := ActivePools.GetShard(poolID)
-
-	poolShard.RLock()
-
-	pool, ok := poolShard.Table[poolID]
-
-	poolShard.RUnlock()
+	pool, ok := ActivePools.Get(poolID)
 
 	if !ok {
 		return
@@ -208,21 +170,13 @@ func RemoveFromPool(poolID string, nodeID string) {
 	pool.Unlock()
 
 	if cleanPool {
-		poolShard.Lock()
-		delete(poolShard.Table, poolID)
-		poolShard.Unlock()
+		ActivePools.Remove(poolID)
 	}
 }
 
 // Send Data to specific node in pool
 func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, msgType PoolNodeChanMessageType, data interface{}) bool {
-	poolShard := ActivePools.GetShard(poolID)
-
-	poolShard.RLock()
-
-	pool, ok := poolShard.Table[poolID]
-
-	poolShard.RUnlock()
+	pool, ok := ActivePools.Get(poolID)
 
 	if !ok {
 		return false

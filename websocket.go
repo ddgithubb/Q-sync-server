@@ -7,7 +7,6 @@ import (
 	"sync-server/sspb"
 	"time"
 
-	"github.com/aidarkhanov/nanoid/v2"
 	"github.com/gofiber/websocket/v2"
 	"google.golang.org/protobuf/proto"
 )
@@ -57,8 +56,10 @@ func WebsocketServer(ws *websocket.Conn) {
 	// 3. Keep track of updated users
 
 	// TEMP
-	userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
-	deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
+	// userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
+	// deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
+	userID := ws.Query("userid")
+	deviceID := userID
 	displayName := ws.Query("displayname")
 	userInfo := &sspb.PoolUserInfo{
 		UserId:      userID,

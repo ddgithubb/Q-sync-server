@@ -12,14 +12,14 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-type nodeState int32
+type NodeState int32
 
 const (
-	inactiveNodeState nodeState = 0
-	activeNodeState   nodeState = 1
+	inactiveNodeState NodeState = 0
+	activeNodeState   NodeState = 1
 )
 
-type ackPendingInfo struct {
+type AckPendingInfo struct {
 	expireTime time.Time
 	responseOp sspb.SSMessage_Op
 
@@ -56,9 +56,9 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 
 		curNodePosition pool.PoolNodePosition
 
-		nodeStates map[string]nodeState = make(map[string]nodeState) // keys are node ids
+		nodeStates map[string]NodeState = make(map[string]NodeState) // keys are node ids
 
-		ackPending map[string]*ackPendingInfo = make(map[string]*ackPendingInfo) // keys are Keys, value are how many acks accepted
+		ackPending map[string]*AckPendingInfo = make(map[string]*AckPendingInfo) // keys are Keys, value are how many acks accepted
 
 	)
 
@@ -84,7 +84,7 @@ func nodeManager(ws *websocket.Conn, poolID string, nodeID string, nodeChan chan
 
 	createAckKey := func(responseOp sspb.SSMessage_Op, timeout time.Duration, targetNodeID string) string {
 		key, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, 5)
-		ackPending[key] = &ackPendingInfo{
+		ackPending[key] = &AckPendingInfo{
 			expireTime:   time.Now().Add(timeout),
 			responseOp:   responseOp,
 			targetNodeID: targetNodeID,
