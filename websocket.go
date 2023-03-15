@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync-server/pool"
 	"sync-server/sspb"
+	"sync-server/store"
 	"time"
 
 	"github.com/gofiber/websocket/v2"
@@ -43,12 +44,45 @@ func writeSSMessage(ws *websocket.Conn, ssMsg *sspb.SSMessage) error {
 	return nil
 }
 
+func AuthenticateWebsocket(ws *websocket.Conn, deviceID string) (string, bool) {
+	if err := ws.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return "", false
+	}
+
+	_, b, err := ws.ReadMessage()
+	if err != nil || len(b) == 0 {
+		return "", false
+	}
+
+	authToken := string(b)
+
+	if len(authToken) != store.AUTH_TOKEN_SIZE {
+		return "", false
+	}
+
+	return store.VerifyAuthToken(deviceID, authToken)
+}
+
 func WebsocketServer(ws *websocket.Conn) {
 
 	poolID := ws.Locals("poolid").(string)
+	deviceID := ws.Query("deviceid")
+	isTestStr := ws.Query("test", "false")
+
+	isTest := false
+	if isTestStr == "true" {
+		isTest = true
+	}
+
+	_ = isTest
 
 	// 1. Authenticate
-	// TODO
+	userID, ok := AuthenticateWebsocket(ws, deviceID)
+	if !ok {
+		writeSSMessage(ws, sspb.BuildSSMessage(sspb.SSMessage_CLOSE, nil))
+		ws.Close()
+		return
+	}
 
 	// 2. Validate that poolID is valid via the pool manager
 	// TODO
@@ -56,11 +90,7 @@ func WebsocketServer(ws *websocket.Conn) {
 	// 3. Keep track of updated users
 
 	// TEMP
-	// userID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
-	// deviceID, _ := nanoid.GenerateString(nanoid.DefaultAlphabet, NANOID_LENGTH)
-	userID := ws.Query("userid")
-	deviceID := userID
-	displayName := ws.Query("displayname")
+	displayName := "TEST DISPLAY NAME " + deviceID
 	userInfo := &sspb.PoolUserInfo{
 		UserId:      userID,
 		DisplayName: displayName,

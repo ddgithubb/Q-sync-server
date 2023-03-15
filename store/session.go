@@ -7,52 +7,32 @@ import (
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
-const (
-	CLEAN_INTERVAL time.Duration = 5 * time.Minute
-)
-
-type SessionStore struct {
-	store cmap.ConcurrentMap[string, *webauthn.SessionData]
+type SessionData struct {
+	data *webauthn.SessionData
 }
+
+func (sessionData *SessionData) Expires() time.Time {
+	return sessionData.data.Expires
+}
+
+type SessionStore = cmap.ConcurrentMap[string, *SessionData]
 
 // DeviceID -> SessionData
-var sessionStore *SessionStore = createSessionStore()
-
-func createSessionStore() *SessionStore {
-	sessionStore := &SessionStore{}
-	sessionStore.store = cmap.New[*webauthn.SessionData]()
-	sessionStore.startCleaner()
-	return sessionStore
-}
+var sessionStore *SessionStore = CreateTTLCache[*SessionData]()
 
 func StoreSessionData(deviceID string, sessionData *webauthn.SessionData) bool {
-	return sessionStore.store.SetIfAbsent(deviceID, sessionData)
+	return sessionStore.SetIfAbsent(deviceID, &SessionData{
+		data: sessionData,
+	})
 }
 
 func RetrieveSessionData(deviceID string) (*webauthn.SessionData, bool) {
 	var sessionData *webauthn.SessionData
 	var ok bool
-	sessionStore.store.RemoveCb(deviceID, func(key string, v *webauthn.SessionData, exists bool) bool {
-		sessionData = v
+	sessionStore.RemoveCb(deviceID, func(key string, v *SessionData, exists bool) bool {
+		sessionData = v.data
 		ok = exists
 		return true
 	})
 	return sessionData, ok
-}
-
-func (sessionStore *SessionStore) startCleaner() {
-	go func() {
-		ticker := time.NewTicker(CLEAN_INTERVAL)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			now := time.Now()
-			iter := sessionStore.store.IterBuffered()
-			for entry := range iter {
-				if now.After(entry.Val.Expires) {
-					sessionStore.store.Remove(entry.Key)
-				}
-			}
-		}
-	}()
 }

@@ -10,8 +10,8 @@ import (
 
 var webauthnConfig *webauthn.Config = &webauthn.Config{
 	RPDisplayName: "PoolNet",
-	RPID:          "poolnet.com",
-	RPOrigins:     []string{"*"},
+	RPID:          "localhost",
+	RPOrigins:     []string{"http://localhost:3000"},
 	AuthenticatorSelection: protocol.AuthenticatorSelection{
 		RequireResidentKey: protocol.ResidentKeyNotRequired(),
 		ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
@@ -25,7 +25,7 @@ var serverWebAuthN *webauthn.WebAuthn = createServerWebAuthN()
 func createServerWebAuthN() *webauthn.WebAuthn {
 	w, err := webauthn.New(webauthnConfig)
 	if err != nil {
-		panic("failed to create server webauthn")
+		panic("failed to create server webauthn " + err.Error())
 	}
 	return w
 }
@@ -79,14 +79,6 @@ func FinishRegistration(deviceInfo *sspb.PoolDeviceInfo, credentialData *protoco
 	return err == nil
 }
 
-func BeginDeviceRegistration() {
-	// TODO
-}
-
-func FinishDeviceRegistration() {
-	// TODO
-}
-
 func BeginAuthenticate(userID, deviceID string) (*protocol.CredentialAssertion, bool) {
 	user, err := store.GetUser(userID)
 	if err != nil {
@@ -124,4 +116,12 @@ func FinishAuthenticate(userID, deviceID string, credentialData *protocol.Parsed
 
 	_, err = serverWebAuthN.ValidateLogin(user, *session, credentialData)
 	return err == nil
+}
+
+func BeginDeviceRegistration() {
+	// TODO
+}
+
+func FinishDeviceRegistration() {
+	// TODO
 }

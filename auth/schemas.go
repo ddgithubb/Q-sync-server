@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"sync-server/sspb"
-
 	"github.com/go-webauthn/webauthn/protocol"
 )
 
@@ -16,6 +14,27 @@ type BeginRegisterResponse struct {
 }
 
 type FinishRegisterRequest struct {
-	DeviceInfo     *sspb.PoolDeviceInfo
-	CredentialData *protocol.ParsedCredentialCreationData
+	DeviceID       string
+	DeviceName     string
+	DeviceType     int32
+	CredentialData *protocol.CredentialCreationResponse
+}
+
+type BeginAuthenticateRequest struct {
+	UserID   string
+	DeviceID string
+}
+
+type BeginAuthenticateResponse struct {
+	CredentialAssertion *protocol.CredentialAssertion
+}
+
+type FinishAuthenticateRequest struct {
+	UserID         string
+	DeviceID       string
+	CredentialData *protocol.CredentialAssertionResponse
+}
+
+type FinishAuthenticateResponse struct {
+	Token string
 }
