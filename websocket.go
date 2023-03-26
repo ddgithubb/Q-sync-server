@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync-server/auth"
 	"sync-server/pool"
 	"sync-server/sspb"
-	"sync-server/store"
 	"time"
 
 	"github.com/gofiber/websocket/v2"
@@ -44,23 +44,29 @@ func writeSSMessage(ws *websocket.Conn, ssMsg *sspb.SSMessage) error {
 	return nil
 }
 
-func AuthenticateWebsocket(ws *websocket.Conn, deviceID string) (string, bool) {
+func AuthenticateWebsocket(ws *websocket.Conn, deviceID string) (*auth.AuthTokenData, bool) {
 	if err := ws.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		return "", false
+		return nil, false
 	}
 
 	_, b, err := ws.ReadMessage()
 	if err != nil || len(b) == 0 {
-		return "", false
+		return nil, false
 	}
 
 	authToken := string(b)
 
-	if len(authToken) != store.AUTH_TOKEN_SIZE {
-		return "", false
+	if len(authToken) != auth.AUTH_TOKEN_SIZE {
+		return nil, false
 	}
 
-	return store.VerifyAuthToken(deviceID, authToken)
+	tokenData, ok := auth.VerfiyAndRefreshAuthToken(deviceID, authToken)
+	if !ok {
+		return nil, false
+	}
+
+	ws.WriteMessage(websocket.TextMessage, []byte(tokenData.Token))
+	return tokenData, true
 }
 
 func WebsocketServer(ws *websocket.Conn) {
@@ -76,50 +82,34 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	_ = isTest
 
-	// 1. Authenticate
-	userID, ok := AuthenticateWebsocket(ws, deviceID)
+	// Authenticate
+	authTokenData, ok := AuthenticateWebsocket(ws, deviceID)
 	if !ok {
-		writeSSMessage(ws, sspb.BuildSSMessage(sspb.SSMessage_CLOSE, nil))
+		ws.WriteMessage(websocket.CloseMessage, []byte{})
 		ws.Close()
 		return
 	}
 
-	// 2. Validate that poolID is valid via the pool manager
-	// TODO
-
-	// 3. Keep track of updated users
-
-	// TEMP
-	displayName := "TEST DISPLAY NAME " + deviceID
-	userInfo := &sspb.PoolUserInfo{
-		UserId:      userID,
-		DisplayName: displayName,
-		Devices: []*sspb.PoolDeviceInfo{
-			{
-				DeviceId:   deviceID,
-				DeviceName: displayName,
-				DeviceType: sspb.DeviceType_DESKTOP,
-			},
-		},
-	}
-	// TEMP
-
+	userID := authTokenData.UserID
 	nodeID := deviceID
 
 	closeChan := make(chan struct{})
 	nodeChan := make(chan pool.PoolNodeChanMessage) // Should be blocking for certain synchornization
 
-	go StartNodeManager(ws, poolID, nodeID, nodeChan, closeChan)
-
-	pool.JoinPool(poolID, nodeID, userID, userInfo.Devices[0], nodeChan, userInfo)
-
-	fmt.Println(nodeID, "+ joining pool", poolID)
-
 	defer func() {
 		fmt.Println(nodeID, "- leaving pool", poolID)
-		pool.RemoveFromPool(poolID, nodeID)
+		pool.DisconnectFromPool(poolID, nodeID)
 		closeChan <- struct{}{}
 	}()
+
+	go StartNodeManager(ws, poolID, nodeID, nodeChan, closeChan)
+
+	ok = pool.ConnectToPool(poolID, nodeID, userID, authTokenData.Device, nodeChan)
+	if !ok {
+		return
+	}
+
+	fmt.Println(nodeID, "+ joining pool", poolID)
 
 	var (
 		b   []byte

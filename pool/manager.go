@@ -3,129 +3,178 @@ package pool
 import (
 	"fmt"
 	"sync-server/sspb"
+	"sync-server/store"
 
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 var ActivePools cmap.ConcurrentMap[string, *Pool] = cmap.New[*Pool]()
 
-func (node *PoolNode) getAddNodeData() *sspb.SSMessage_AddNodeData {
-	return &sspb.SSMessage_AddNodeData{
-		NodeId: node.NodeID,
-		UserId: node.UserID,
-		Path:   node.getPathInt32(),
+func fetchPool(poolID string) (*Pool, bool) {
+	pool, ok := ActivePools.Get(poolID)
+	if ok {
+		return pool, true
 	}
-}
 
-func (node *PoolNode) getBasicNode() *sspb.PoolBasicNode {
-	return &sspb.PoolBasicNode{
-		NodeId: node.NodeID,
-		Path:   node.getPathInt32(),
+	poolStore, err := store.GetStoredPool(poolID)
+	if err != nil {
+		return nil, false
 	}
-}
 
-// Joins pool based on pool id, creates a pool IF NOT EXIST
-func JoinPool(poolID, nodeID, userID string, deviceInfo *PoolDeviceInfo, nodeChan chan PoolNodeChanMessage, userInfo *sspb.PoolUserInfo) { // TEMP userInfo
-	pool := ActivePools.Upsert(poolID, nil, func(exist bool, valueInMap, newValue *Pool) *Pool {
+	newPool := NewNodePool(poolStore)
+
+	pool = ActivePools.Upsert(poolID, nil, func(exist bool, valueInMap, newValue *Pool) *Pool {
 		if !exist {
-			return NewNodePool()
+			return newPool
 		}
 		return valueInMap
 	})
 
+	return pool, true
+}
+
+func performPoolAction(poolID string, action func(pool *Pool) bool) bool {
+	pool, ok := fetchPool(poolID)
+	if !ok {
+		return false
+	}
+
 	pool.Lock()
 
-	addedNode := pool.AddNode(nodeID, userID, deviceInfo, nodeChan)
+	ok = action(pool)
 
-	fmt.Println(len(pool.NodeMap), "node in pool", poolID)
-
-	addNodeData := addedNode.getAddNodeData()
-
-	initNodes := make([]*sspb.SSMessage_AddNodeData, 0, len(pool.NodeMap))
-
-	// TEMP
-	addedNode.UserInfo = userInfo
-
-	users := make([]*sspb.PoolUserInfo, 1, len(pool.NodeMap))
-	users[0] = userInfo
-
-	for _, node := range pool.NodeMap {
-		if node.NodeID == nodeID {
-			continue
-		}
-		updateDeviceSSMsg := sspb.BuildSSMessage(
-			sspb.SSMessage_ADD_USER,
-			&sspb.SSMessage_AddUserData_{
-				AddUserData: &sspb.SSMessage_AddUserData{
-					UserInfo: userInfo,
-				},
-			},
-		)
-		node.NodeChan <- PoolNodeChanMessage{
-			Type: PNCMT_SEND_SS_MESSAGE,
-			Data: updateDeviceSSMsg,
-		}
-		users = append(users, node.UserInfo)
-	}
-	// TEMP
-
-	for _, node := range pool.NodeMap {
-		addNodeSSMsg := sspb.BuildSSMessage(
-			sspb.SSMessage_ADD_NODE,
-			&sspb.SSMessage_AddNodeData_{
-				AddNodeData: addNodeData,
-			},
-		)
-		initNodes = append(initNodes, node.getAddNodeData())
-
-		if node.NodeID != nodeID {
-			node.NodeChan <- PoolNodeChanMessage{
-				Type: PNCMT_SEND_SS_MESSAGE,
-				Data: addNodeSSMsg,
-			}
-		}
-	}
-
-	initPoolSSMsg := sspb.BuildSSMessage(
-		sspb.SSMessage_INIT_POOL,
-		&sspb.SSMessage_InitPoolData_{
-			InitPoolData: &sspb.SSMessage_InitPoolData{
-				InitNodes: initNodes,
-				PoolInfo: &sspb.PoolInfo{
-					PoolId:   poolID,
-					PoolName: "TEST_POOL",
-					Users:    users,
-				},
-			},
-		},
-	)
-
-	addedNode.NodeChan <- PoolNodeChanMessage{
-		Type: PNCMT_SEND_SS_MESSAGE,
-		Data: initPoolSSMsg,
+	if pool.IsEmpty() {
+		ActivePools.Remove(poolID)
 	}
 
 	pool.Unlock()
+
+	return ok
 }
 
-// Removes node from pool and does the necessary position updates
-func RemoveFromPool(poolID string, nodeID string) {
+func UserExistsInPool(poolID string, userID string) bool {
+	return performPoolAction(poolID, func(pool *Pool) bool {
+		return pool.PoolStore.HasUser(userID)
+	})
+}
+
+func JoinPool(poolID string, user *sspb.PoolUserInfo) (*sspb.PoolInfo, bool) {
+	var poolInfo *sspb.PoolInfo
+	ok := performPoolAction(poolID, func(pool *Pool) bool {
+		ok := pool.PoolStore.AddUser(user)
+		if !ok {
+			return false
+		}
+		for _, node := range pool.NodeMap {
+			updateDeviceSSMsg := sspb.BuildSSMessage(
+				sspb.SSMessage_ADD_USER,
+				&sspb.SSMessage_AddUserData_{
+					AddUserData: &sspb.SSMessage_AddUserData{
+						UserInfo: user,
+					},
+				},
+			)
+			node.NodeChan <- PoolNodeChanMessage{
+				Type: PNCMT_SEND_SS_MESSAGE,
+				Data: updateDeviceSSMsg,
+			}
+		}
+		poolInfo = pool.PoolInfo()
+		return true
+	})
+
+	return poolInfo, ok
+}
+
+func LeavePool(poolID, userID string) bool {
+	return performPoolAction(poolID, func(pool *Pool) bool {
+		ok := pool.PoolStore.RemoveUser(userID)
+		if !ok {
+			return false
+		}
+		for _, node := range pool.NodeMap {
+			removeDeviceSSMsg := sspb.BuildSSMessage(
+				sspb.SSMessage_REMOVE_USER,
+				&sspb.SSMessage_RemoveUserData_{
+					RemoveUserData: &sspb.SSMessage_RemoveUserData{
+						UserId: userID,
+					},
+				},
+			)
+			node.NodeChan <- PoolNodeChanMessage{
+				Type: PNCMT_SEND_SS_MESSAGE,
+				Data: removeDeviceSSMsg,
+			}
+		}
+		return true
+	})
+}
+
+func ConnectToPool(poolID, nodeID, userID string, device *sspb.PoolDeviceInfo, nodeChan chan PoolNodeChanMessage) bool {
+	return performPoolAction(poolID, func(pool *Pool) bool {
+		if !pool.PoolStore.AddDevice(userID, device) {
+			return false
+		}
+
+		addedNode := pool.AddNode(nodeID, userID, device, nodeChan)
+
+		fmt.Println(len(pool.NodeMap), "node in pool", poolID)
+
+		addNodeData := addedNode.getAddNodeData()
+
+		initNodes := make([]*sspb.SSMessage_AddNodeData, 0, len(pool.NodeMap))
+
+		for _, node := range pool.NodeMap {
+			addNodeSSMsg := sspb.BuildSSMessage(
+				sspb.SSMessage_ADD_NODE,
+				&sspb.SSMessage_AddNodeData_{
+					AddNodeData: addNodeData,
+				},
+			)
+			initNodes = append(initNodes, node.getAddNodeData())
+
+			if node.NodeID != nodeID {
+				node.NodeChan <- PoolNodeChanMessage{
+					Type: PNCMT_SEND_SS_MESSAGE,
+					Data: addNodeSSMsg,
+				}
+			}
+		}
+
+		initPoolSSMsg := sspb.BuildSSMessage(
+			sspb.SSMessage_INIT_POOL,
+			&sspb.SSMessage_InitPoolData_{
+				InitPoolData: &sspb.SSMessage_InitPoolData{
+					InitNodes: initNodes,
+					PoolInfo:  pool.PoolInfo(),
+				},
+			},
+		)
+
+		addedNode.NodeChan <- PoolNodeChanMessage{
+			Type: PNCMT_SEND_SS_MESSAGE,
+			Data: initPoolSSMsg,
+		}
+
+		return true
+	})
+}
+
+func DisconnectFromPool(poolID string, nodeID string) {
 	pool, ok := ActivePools.Get(poolID)
 
 	if !ok {
 		return
 	}
 
-	cleanPool := false
-
 	pool.Lock()
 
-	promotedNodes, removed_node := pool.RemoveNode(nodeID)
+	promotedNodes, _ := pool.RemoveNode(nodeID)
 
 	fmt.Println(len(pool.NodeMap), "node in pool", poolID)
 
-	if len(pool.NodeMap) == 0 {
-		cleanPool = true
+	if pool.IsEmpty() {
+		ActivePools.Remove(poolID)
 	} else {
 		promotedBasicNodes := make([]*sspb.PoolBasicNode, len(promotedNodes))
 		for i := 0; i < len(promotedNodes); i++ {
@@ -147,34 +196,11 @@ func RemoveFromPool(poolID string, nodeID string) {
 				Data: removeNodeSSMsg,
 			}
 		}
-
-		// TEMP
-
-		for _, node := range pool.NodeMap {
-			removeDeviceSSMsg := sspb.BuildSSMessage(
-				sspb.SSMessage_REMOVE_USER,
-				&sspb.SSMessage_RemoveUserData_{
-					RemoveUserData: &sspb.SSMessage_RemoveUserData{
-						UserId: removed_node.UserID,
-					},
-				},
-			)
-			node.NodeChan <- PoolNodeChanMessage{
-				Type: PNCMT_SEND_SS_MESSAGE,
-				Data: removeDeviceSSMsg,
-			}
-		}
-		// TEMP
 	}
 
 	pool.Unlock()
-
-	if cleanPool {
-		ActivePools.Remove(poolID)
-	}
 }
 
-// Send Data to specific node in pool
 func SendToNodeInPool(poolID string, nodeID string, targetNodeID string, msgType PoolNodeChanMessageType, data interface{}) bool {
 	pool, ok := ActivePools.Get(poolID)
 

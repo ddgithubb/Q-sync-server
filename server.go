@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"sync-server/auth"
+	"sync-server/pool"
 	"sync-server/store"
 	"time"
 
@@ -67,6 +68,7 @@ func main() {
 	}))
 
 	auth.AttatchAuthRoutes(app)
+	pool.AttatchPoolRoutes(app)
 
 	app.Get("/ss/version", func(c *fiber.Ctx) error {
 		return c.JSON(VersionInfo{

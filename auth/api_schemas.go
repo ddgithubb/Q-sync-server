@@ -20,6 +20,10 @@ type FinishRegisterRequest struct {
 	CredentialData *protocol.CredentialCreationResponse
 }
 
+type FinishRegisterResponse struct {
+	Token string
+}
+
 type BeginAuthenticateRequest struct {
 	UserID   string
 	DeviceID string

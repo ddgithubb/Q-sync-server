@@ -51,20 +51,20 @@ func UnmarshalBinary(buf []byte, pointer any) error {
 	return dec.Decode(pointer)
 }
 
-func PutUser(user *PoolUser) error {
+func putUserDevice(user *UserDevice) error {
 	b, err := MarshalBinary(user)
 	if err != nil {
 		return err
 	}
-	return authDB.Put(user.WebAuthnID(), b)
+	return authDB.Put([]byte(user.DeviceInfo.DeviceId), b)
 }
 
-func GetUser(userID string) (*PoolUser, error) {
-	b, err := authDB.Get([]byte(userID))
+func getUserDevice(deviceID string) (*UserDevice, error) {
+	b, err := authDB.Get([]byte(deviceID))
 	if err != nil {
 		return nil, err
 	}
-	user := new(PoolUser)
+	user := new(UserDevice)
 	err = UnmarshalBinary(b, user)
 	if err != nil {
 		return nil, err
@@ -72,6 +72,23 @@ func GetUser(userID string) (*PoolUser, error) {
 	return user, nil
 }
 
-func HasUser(userID string) (bool, error) {
-	return authDB.Has([]byte(userID))
+func putPool(pool *Pool) error {
+	b, err := MarshalBinary(pool)
+	if err != nil {
+		return err
+	}
+	return poolDB.Put([]byte(pool.PoolID), b)
+}
+
+func getPool(poolID string) (*Pool, error) {
+	b, err := poolDB.Get([]byte(poolID))
+	if err != nil {
+		return nil, err
+	}
+	pool := new(Pool)
+	err = UnmarshalBinary(b, pool)
+	if err != nil {
+		return nil, err
+	}
+	return pool, nil
 }

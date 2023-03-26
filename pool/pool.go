@@ -3,6 +3,7 @@ package pool
 import (
 	"sync"
 	"sync-server/sspb"
+	"sync-server/store"
 	"time"
 )
 
@@ -11,8 +12,7 @@ type PoolDeviceInfo = sspb.PoolDeviceInfo
 type PoolNode struct {
 	NodeID             string
 	UserID             string
-	DeviceInfo         *PoolDeviceInfo
-	UserInfo           *sspb.PoolUserInfo // TEMP
+	Device             *sspb.PoolDeviceInfo
 	NodeChan           chan PoolNodeChanMessage
 	ContainerNodePanel *PoolNodePanel
 	PartnerInt         int
@@ -42,6 +42,7 @@ type PoolNodeCluster struct {
 type Pool struct {
 	ClusterTree [][]*PoolNodeCluster
 	NodeMap     map[string]*PoolNode
+	PoolStore   *store.Pool
 	sync.RWMutex
 }
 
@@ -94,6 +95,22 @@ func (n *PoolNode) getPathInt32() []uint32 {
 		newPath[i] = uint32(path[i])
 	}
 	return newPath
+}
+
+func (node *PoolNode) getAddNodeData() *sspb.SSMessage_AddNodeData {
+	return &sspb.SSMessage_AddNodeData{
+		NodeId: node.NodeID,
+		UserId: node.UserID,
+		Path:   node.getPathInt32(),
+		Device: node.Device,
+	}
+}
+
+func (node *PoolNode) getBasicNode() *sspb.PoolBasicNode {
+	return &sspb.PoolBasicNode{
+		NodeId: node.NodeID,
+		Path:   node.getPathInt32(),
+	}
 }
 
 func (n *PoolNode) updateSingleNodePosition(position int, nodeID string) {
@@ -231,7 +248,7 @@ func (pool *Pool) addNewClusterTreeLevel() {
 	pool.ClusterTree = append(ct, new_cluster_level)
 }
 
-func (pool *Pool) AddNode(node_id, user_id string, device_info *PoolDeviceInfo, node_chan chan PoolNodeChanMessage) *PoolNode {
+func (pool *Pool) AddNode(node_id, user_id string, device *sspb.PoolDeviceInfo, node_chan chan PoolNodeChanMessage) *PoolNode {
 	ct := pool.ClusterTree
 	var new_node *PoolNode
 
@@ -272,7 +289,7 @@ func (pool *Pool) AddNode(node_id, user_id string, device_info *PoolDeviceInfo, 
 					new_node = &PoolNode{
 						NodeID:             node_id,
 						UserID:             user_id,
-						DeviceInfo:         device_info,
+						Device:             device,
 						NodeChan:           node_chan,
 						ContainerNodePanel: ct[i][lowest_node_amount_index].Panels[lowest_node_panel_amount_index],
 						PartnerInt:         j,
@@ -288,7 +305,7 @@ func (pool *Pool) AddNode(node_id, user_id string, device_info *PoolDeviceInfo, 
 
 	if !added {
 		pool.addNewClusterTreeLevel()
-		return pool.AddNode(node_id, user_id, device_info, node_chan)
+		return pool.AddNode(node_id, user_id, device, node_chan)
 	}
 
 	new_node.updateNodePosition()
@@ -381,7 +398,7 @@ func (pool *Pool) RemoveNode(node_id string) ([]*PoolNode, *PoolNode) { // TEMP 
 	return promoted_nodes, node
 }
 
-func NewNodePool() *Pool {
+func NewNodePool(poolStore *store.Pool) *Pool {
 	cluster_tree := make([][]*PoolNodeCluster, 1)
 	cluster_tree[0] = make([]*PoolNodeCluster, 1)
 
@@ -406,5 +423,18 @@ func NewNodePool() *Pool {
 	return &Pool{
 		NodeMap:     make(map[string]*PoolNode),
 		ClusterTree: cluster_tree,
+		PoolStore:   poolStore,
 	}
+}
+
+func (pool *Pool) IsEmpty() bool {
+	return len(pool.NodeMap) == 0
+}
+
+func (pool *Pool) PoolInfo() *sspb.PoolInfo {
+	return pool.PoolStore.GetPoolInfo()
+}
+
+func (pool *Pool) Users() []*sspb.PoolUserInfo {
+	return pool.PoolStore.GetUsersCopy()
 }
