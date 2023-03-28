@@ -48,6 +48,7 @@ func BeginRegistration(displayName string) (*protocol.CredentialCreation, string
 		return nil, "", false
 	}
 
+	session.UserDisplayName = displayName
 	store.StoreSessionData(deviceID, session)
 	return options, deviceID, true
 }

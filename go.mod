@@ -9,7 +9,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.42.0
 	github.com/gofiber/websocket/v2 v2.1.4
 	github.com/orcaman/concurrent-map/v2 v2.0.1
-	google.golang.org/protobuf v1.29.0
+	google.golang.org/protobuf v1.30.0
 )
 
 require (

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/websocket/v2"
 	// "net/http"
 	// _ "net/http/pprof"
@@ -65,6 +66,9 @@ func main() {
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
+	}))
+	app.Use(limiter.New(limiter.Config{
+		Expiration: 1 * time.Second,
 	}))
 
 	auth.AttatchAuthRoutes(app)

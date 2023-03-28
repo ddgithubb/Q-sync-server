@@ -51,12 +51,50 @@ func UnmarshalBinary(buf []byte, pointer any) error {
 	return dec.Decode(pointer)
 }
 
+// Debugging only
+func PrintAuthDB() {
+	println("Printing AUTHDB")
+	iter := authDB.Items()
+	for {
+		b1, _, err := iter.Next()
+		if err != nil {
+			break
+		}
+		println("AUTHDB user: ", string(b1))
+	}
+}
+
+// Debugging only
+func PrintPoolDB() {
+	println("Printing POOLDB")
+	iter := poolDB.Items()
+	for {
+		b1, _, err := iter.Next()
+		if err != nil {
+			break
+		}
+		println("POOLDB poolID: ", string(b1))
+	}
+}
+
 func putUserDevice(user *UserDevice) error {
 	b, err := MarshalBinary(user)
 	if err != nil {
 		return err
 	}
-	return authDB.Put([]byte(user.DeviceInfo.DeviceId), b)
+
+	err = authDB.Put([]byte(user.DeviceInfo.DeviceId), b)
+	return err
+}
+
+func putPool(pool *Pool) error {
+	b, err := MarshalBinary(pool)
+	if err != nil {
+		return err
+	}
+
+	err = poolDB.Put([]byte(pool.PoolID), b)
+	return err
 }
 
 func getUserDevice(deviceID string) (*UserDevice, error) {
@@ -72,14 +110,6 @@ func getUserDevice(deviceID string) (*UserDevice, error) {
 	return user, nil
 }
 
-func putPool(pool *Pool) error {
-	b, err := MarshalBinary(pool)
-	if err != nil {
-		return err
-	}
-	return poolDB.Put([]byte(pool.PoolID), b)
-}
-
 func getPool(poolID string) (*Pool, error) {
 	b, err := poolDB.Get([]byte(poolID))
 	if err != nil {
@@ -91,4 +121,8 @@ func getPool(poolID string) (*Pool, error) {
 		return nil, err
 	}
 	return pool, nil
+}
+
+func deletePool(poolID string) error {
+	return poolDB.Delete([]byte(poolID))
 }

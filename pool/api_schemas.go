@@ -1,6 +1,8 @@
 package pool
 
-import "sync-server/sspb"
+import (
+	"sync-server/sspb"
+)
 
 type CreatePoolRequest struct {
 	PoolName string
@@ -16,6 +18,10 @@ type JoinPoolRequest struct {
 
 type JoinPoolResponse struct {
 	PoolInfo *sspb.PoolInfo
+}
+
+type LeavePoolResponse struct {
+	Success bool
 }
 
 type CreateInviteToPoolResponse struct {

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"sync-server/sspb"
 
 	"github.com/gofiber/fiber/v2"
@@ -31,13 +30,16 @@ func AuthTokenMiddleware(c *fiber.Ctx) error {
 		return UnauthorizedResponse(c)
 	}
 
-	userID, verified := VerifyAuthToken(deviceID, authToken)
+	tokenData, verified := VerifyAuthToken(deviceID, authToken)
 	if !verified {
+		println("Failed to verify auth token", deviceID, authToken)
 		return UnauthorizedResponse(c)
 	}
 
+	println("Verified auth token", deviceID, tokenData.UserID, authToken)
+
 	c.Locals("deviceid", deviceID)
-	c.Locals("userid", userID)
+	c.Locals("userid", tokenData.UserID)
 	return c.Next()
 }
 
@@ -101,8 +103,6 @@ func BeginAuthenticateApi(c *fiber.Ctx) error {
 	if err := c.BodyParser(req); err != nil {
 		return BadRequestResponse(c)
 	}
-
-	fmt.Println(req.DeviceID, req.UserID)
 
 	if req.UserID == "" || req.DeviceID == "" {
 		return BadRequestResponse(c)

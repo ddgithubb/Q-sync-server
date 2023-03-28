@@ -96,12 +96,11 @@ func LeavePoolApi(c *fiber.Ctx) error {
 	poolID := c.Params("poolid")
 	userID := c.Locals("userid").(string)
 
-	ok := LeavePool(poolID, userID)
-	if !ok {
-		return BadRequestResponse(c)
-	}
+	success := LeavePool(poolID, userID)
 
-	return OKResponse(c)
+	return c.JSON(LeavePoolResponse{
+		Success: success,
+	})
 }
 
 func CreateInviteToPoolApi(c *fiber.Ctx) error {

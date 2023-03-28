@@ -21,7 +21,12 @@ type Pool struct {
 }
 
 func (pool *Pool) update() bool {
-	err := putPool(pool)
+	var err error
+	if len(pool.Users) == 0 {
+		err = deletePool(pool.PoolID)
+	} else {
+		err = putPool(pool)
+	}
 	return err == nil
 }
 
