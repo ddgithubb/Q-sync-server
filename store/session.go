@@ -30,7 +30,9 @@ func RetrieveSessionData(deviceID string) (*webauthn.SessionData, bool) {
 	var sessionData *webauthn.SessionData
 	var ok bool
 	sessionStore.RemoveCb(deviceID, func(key string, v *SessionData, exists bool) bool {
-		sessionData = v.data
+		if v != nil {
+			sessionData = v.data
+		}
 		ok = exists
 		return true
 	})

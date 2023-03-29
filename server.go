@@ -61,7 +61,9 @@ func main() {
 
 	defer cleanUp()
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		Immutable: true,
+	})
 	defer app.Shutdown()
 
 	app.Use(cors.New(cors.Config{

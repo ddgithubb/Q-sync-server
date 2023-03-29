@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	USER_ID_LENGTH   = 21
-	DEVICE_ID_LENGTH = 21
+	MAX_DISPLAY_NAME_LENGTH = 50
+	USER_ID_LENGTH          = 21
+	DEVICE_ID_LENGTH        = 21
 )
 
 type UserDevice struct {

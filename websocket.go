@@ -60,7 +60,7 @@ func AuthenticateWebsocket(ws *websocket.Conn, deviceID string) (*auth.AuthToken
 		return nil, false
 	}
 
-	tokenData, ok := auth.VerfiyAndRefreshAuthToken(deviceID, authToken)
+	tokenData, ok := auth.VerifyAndRefreshAuthToken(deviceID, authToken)
 	if !ok {
 		return nil, false
 	}

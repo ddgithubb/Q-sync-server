@@ -40,7 +40,7 @@ func CreatePoolApi(c *fiber.Ctx) error {
 		return BadRequestResponse(c)
 	}
 
-	if req.PoolName == "" || len(req.PoolName) < store.MIN_POOL_NAME_LENGTH {
+	if req.PoolName == "" || len(req.PoolName) > store.MAX_POOL_NAME_LENGTH {
 		return BadRequestResponse(c)
 	}
 
@@ -95,8 +95,9 @@ func JoinPoolApi(c *fiber.Ctx) error {
 func LeavePoolApi(c *fiber.Ctx) error {
 	poolID := c.Params("poolid")
 	userID := c.Locals("userid").(string)
+	deviceID := c.Locals("deviceid").(string)
 
-	success := LeavePool(poolID, userID)
+	success := LeavePool(poolID, userID, deviceID)
 
 	return c.JSON(LeavePoolResponse{
 		Success: success,

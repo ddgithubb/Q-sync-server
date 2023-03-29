@@ -34,7 +34,9 @@ func startCleaner[v TTLCacheObject](cache *cmap.ConcurrentMap[string, v], interv
 			<-ticker.C
 			now := time.Now()
 			iter := cache.IterBuffered()
+			// println("Starting cache cleaner", len(iter))
 			for entry := range iter {
+				// println("Checking cache entry", entry.Key, entry.Val)
 				if now.After(entry.Val.Expires()) {
 					cache.Remove(entry.Key)
 				}

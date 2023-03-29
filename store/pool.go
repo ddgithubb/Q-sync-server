@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	MIN_POOL_NAME_LENGTH = 3
+	MAX_POOL_NAME_LENGTH = 50
 	POOL_ID_LENGTH       = 21
 )
 
@@ -111,26 +111,34 @@ func (pool *Pool) AddDevice(userID string, deviceInfo *sspb.PoolDeviceInfo) bool
 	return false
 }
 
-func (pool *Pool) RemoveDevice(userID string, deviceID string) bool {
-	for _, user := range pool.Users {
+// Returns success and if user was removed
+func (pool *Pool) RemoveDevice(userID string, deviceID string) (bool, bool) {
+	for i, user := range pool.Users {
 		if user.UserId == userID {
-			for i, device := range user.Devices {
+			for j, device := range user.Devices {
 				if device.DeviceId == deviceID {
-					user.Devices[i] = user.Devices[len(user.Devices)-1]
+					user.Devices[j] = user.Devices[len(user.Devices)-1]
 					user.Devices = user.Devices[:len(user.Devices)-1]
+
+					userRemoved := false
+					if len(user.Devices) == 0 {
+						pool.Users[i] = pool.Users[len(pool.Users)-1]
+						pool.Users = pool.Users[:len(pool.Users)-1]
+						userRemoved = true
+					}
 
 					ok := pool.update()
 					if !ok {
 						user.Devices = append(user.Devices, device)
 					}
 
-					return ok
+					return ok, userRemoved
 				}
 			}
 			break
 		}
 	}
-	return false
+	return false, false
 }
 
 func (pool *Pool) HasUser(userID string) bool {

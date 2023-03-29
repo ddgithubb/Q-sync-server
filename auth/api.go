@@ -2,6 +2,7 @@ package auth
 
 import (
 	"sync-server/sspb"
+	"sync-server/store"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -30,13 +31,14 @@ func AuthTokenMiddleware(c *fiber.Ctx) error {
 		return UnauthorizedResponse(c)
 	}
 
-	tokenData, verified := VerifyAuthToken(deviceID, authToken)
+	tokenData, verified := VerifyAndRefreshAuthToken(deviceID, authToken)
 	if !verified {
 		println("Failed to verify auth token", deviceID, authToken)
 		return UnauthorizedResponse(c)
 	}
 
-	println("Verified auth token", deviceID, tokenData.UserID, authToken)
+	c.Response().Header.Set("x-auth-token", tokenData.Token)
+	println("Verified auth token, and refreshed token", deviceID, tokenData.UserID, authToken, tokenData.Token)
 
 	c.Locals("deviceid", deviceID)
 	c.Locals("userid", tokenData.UserID)
@@ -51,6 +53,10 @@ func BeginRegistrationApi(c *fiber.Ctx) error {
 	}
 
 	if req.DisplayName == "" {
+		return BadRequestResponse(c)
+	}
+
+	if len(req.DisplayName) > store.MAX_DISPLAY_NAME_LENGTH {
 		return BadRequestResponse(c)
 	}
 

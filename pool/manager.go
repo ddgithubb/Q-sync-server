@@ -18,6 +18,7 @@ func fetchPool(poolID string) (*Pool, bool) {
 
 	poolStore, err := store.GetStoredPool(poolID)
 	if err != nil {
+		fmt.Println("Failed to fetch pool from store:", poolID, err.Error())
 		return nil, false
 	}
 
@@ -86,24 +87,26 @@ func JoinPool(poolID string, user *sspb.PoolUserInfo) (*sspb.PoolInfo, bool) {
 	return poolInfo, ok
 }
 
-func LeavePool(poolID, userID string) bool {
+func LeavePool(poolID, userID, deviceID string) bool {
 	return performPoolAction(poolID, func(pool *Pool) bool {
-		ok := pool.PoolStore.RemoveUser(userID)
+		ok, userRemoved := pool.PoolStore.RemoveDevice(userID, deviceID)
 		if !ok {
 			return false
 		}
-		for _, node := range pool.NodeMap {
-			removeDeviceSSMsg := sspb.BuildSSMessage(
-				sspb.SSMessage_REMOVE_USER,
-				&sspb.SSMessage_RemoveUserData_{
-					RemoveUserData: &sspb.SSMessage_RemoveUserData{
-						UserId: userID,
+		if userRemoved {
+			for _, node := range pool.NodeMap {
+				removeDeviceSSMsg := sspb.BuildSSMessage(
+					sspb.SSMessage_REMOVE_USER,
+					&sspb.SSMessage_RemoveUserData_{
+						RemoveUserData: &sspb.SSMessage_RemoveUserData{
+							UserId: userID,
+						},
 					},
-				},
-			)
-			node.NodeChan <- PoolNodeChanMessage{
-				Type: PNCMT_SEND_SS_MESSAGE,
-				Data: removeDeviceSSMsg,
+				)
+				node.NodeChan <- PoolNodeChanMessage{
+					Type: PNCMT_SEND_SS_MESSAGE,
+					Data: removeDeviceSSMsg,
+				}
 			}
 		}
 		return true

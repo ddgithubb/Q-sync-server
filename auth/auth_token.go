@@ -71,7 +71,7 @@ func VerifyAuthToken(deviceID string, token string) (*AuthTokenData, bool) {
 	return tokenData, true
 }
 
-func VerfiyAndRefreshAuthToken(deviceID string, token string) (*AuthTokenData, bool) {
+func VerifyAndRefreshAuthToken(deviceID string, token string) (*AuthTokenData, bool) {
 	tokenData := authTokenStore.Upsert(deviceID, nil, func(exist bool, valueInMap, newValue *AuthTokenData) *AuthTokenData {
 		if !exist {
 			return nil
