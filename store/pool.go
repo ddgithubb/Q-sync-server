@@ -10,6 +10,7 @@ import (
 const (
 	MAX_POOL_NAME_LENGTH = 50
 	POOL_ID_LENGTH       = 21
+	MAIN_TEST_POOL_ID    = "MAIN_TEST_POOL_ID"
 )
 
 type Pool struct {
@@ -50,6 +51,28 @@ func NewPool(poolName string, owner *sspb.PoolUserInfo) (*Pool, bool) {
 	}
 
 	return pool, true
+}
+
+func InitNewTestPool() {
+	owner := &sspb.PoolUserInfo{
+		UserId: "TEST_USER_ID",
+		Devices: []*sspb.PoolDeviceInfo{
+			{
+				DeviceId: "TEST_DEVICE_ID",
+			},
+		},
+	}
+	pool := &Pool{
+		PoolID:      "MAIN_TEST_POOL_ID",
+		PoolName:    "TEST_POOL_NAME",
+		Created:     time.Now().UnixMilli(),
+		OwnerUserID: owner.UserId,
+		Users:       []*sspb.PoolUserInfo{owner},
+	}
+	ok := pool.update()
+	if !ok {
+		panic("Failed to create test pool")
+	}
 }
 
 func GetStoredPool(poolID string) (*Pool, error) {

@@ -85,7 +85,13 @@ func main() {
 	ssGroup := app.Group("/ss/" + VERSION)
 	ssGroup.Use("/connect", InitializeSocket, websocket.New(WebsocketServer))
 
+	setupTests()
+
 	log.Fatal(app.Listen(PORT))
+}
+
+func setupTests() {
+	store.InitNewTestPool()
 }
 
 func cleanUp() {

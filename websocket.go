@@ -82,12 +82,33 @@ func WebsocketServer(ws *websocket.Conn) {
 
 	_ = isTest
 
-	// Authenticate
-	authTokenData, ok := AuthenticateWebsocket(ws, deviceID)
-	if !ok {
-		ws.WriteMessage(websocket.CloseMessage, []byte{})
-		ws.Close()
-		return
+	var authTokenData *auth.AuthTokenData
+	var ok bool
+	if !isTest {
+		// Authenticate
+		authTokenData, ok = AuthenticateWebsocket(ws, deviceID)
+		if !ok {
+			ws.WriteMessage(websocket.CloseMessage, []byte{})
+			ws.Close()
+			return
+		}
+	} else {
+		_, _, err := ws.ReadMessage()
+		if err != nil {
+			ws.WriteMessage(websocket.CloseMessage, []byte{})
+			ws.Close()
+			return
+		}
+		ws.WriteMessage(websocket.TextMessage, []byte("TEST_AUTH_TOKEN"))
+		authTokenData = &auth.AuthTokenData{
+			UserID: "TEST_USER_ID",
+			Device: &sspb.PoolDeviceInfo{
+				DeviceId:   deviceID,
+				DeviceName: "TEST_DEVICE_NAME",
+				DeviceType: sspb.DeviceType_DESKTOP,
+			},
+			Token: "",
+		}
 	}
 
 	userID := authTokenData.UserID
